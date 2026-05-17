@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "dlh-browser": {
+      "command": "node",
+      "args": [
+        "mcp/dlh-browser.js"
+      ],
+      "env": {
+        "DLH_BRIDGE_URL": "http://127.0.0.1:3847"
+      }
+    }
+  }
+}

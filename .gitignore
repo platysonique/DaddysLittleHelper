@@ -1,0 +1,16 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Local / runtime (installer uses ~/.local/share and ~/.config)
+data/
+*.crx
+packaging/extension.pem
+
+# Cursor local state
+.cursor/projects/
+
+# OS
+Thumbs.db

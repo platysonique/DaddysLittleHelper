@@ -1,0 +1,21 @@
+---
+description: DaddysLittleHelper browser automation discipline
+alwaysApply: true
+---
+
+# DaddysLittleHelper Browser Automation
+
+When a task involves browser control, confirm browser automation is enabled in the DaddysLittleHelper side panel. If the user has it off, do not use `dlh-browser` tools. When on, use Cursor CLI tools and the built-in `dlh-browser` MCP server. It drives the user's daily Vivaldi profile through the DaddysLittleHelper extension — no Playwright browser extension required.
+
+- Treat the selected DaddysLittleHelper project path as the active workspace boundary. Do not edit unrelated projects unless the user explicitly selects or names them.
+- Before any browser click, fill, type, select, or scroll action, call `dlh_browser_snapshot` and target elements from the latest snapshot (`@1`, `@2`, ...). Pass `refGeneration` and `frameId` from that snapshot on every action.
+- Use `dlh_browser_find` to search by visible label/role when the tree is large. Prefer non-`obscured` refs when possible.
+- Use `dlh_browser_select` for `<select>` elements. Use `dlh_browser_screenshot` when the tree is insufficient.
+- **Automation is automatic**: `dlh_browser_snapshot` tries the fast tree first and escalates to CDP (`dlh-tree-v2-cdp`) when frames are inaccessible or the tree is too thin. Clicks escalate to coordinate CDP when fast click fails or hits an obscured target. No `deep` flag — do not ask the user to toggle anything.
+- Response may include `automationPath` (`fast` | `deep`) and `escalated: true`; always use the returned `refGeneration`.
+- `dlh_browser_click_at` for canvas/WebGL when there are no element refs.
+- Do not use `--remote-debugging-port` on the daily Vivaldi profile.
+- After navigation, modal open/close, significant DOM mutation, wait, or scroll, call `dlh_browser_snapshot` again before the next structural action.
+- Do not reuse stale refs across page changes.
+- If the same browser interaction fails twice, stop and report the blocker instead of looping.
+- Prefer snapshot refs. Use the DaddysLittleHelper context block (project path, Vivaldi workspace ID, tab ID, URL, title, selection, excerpt) as the source of truth for which browser tab and local project the user intends.

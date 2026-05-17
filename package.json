@@ -1,0 +1,24 @@
+{
+  "name": "daddyslittlehelper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vivaldi side-panel control surface for Cursor CLI browser automation.",
+  "scripts": {
+    "bridge": "node bridge/server.js",
+    "smoke": "node scripts/smoke.js",
+    "preflight": "node scripts/preflight.js",
+    "doctor": "node scripts/doctor.js",
+    "test": "node --test test/*.test.js",
+    "ensure:mcp": "node scripts/ensure-mcp.js",
+    "setup:service": "node scripts/setup-service.js",
+    "install": "bash install.sh",
+    "models": "node -e \"import('./bridge/models.js').then(async m => console.log(JSON.stringify(await m.listModels(), null, 2)))\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DaddysLittleHelper</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <header class="hero">
+      <div class="brand">
+        <div class="logo">DLH</div>
+        <div>
+          <h1>DaddysLittleHelper</h1>
+          <p id="bridge-status">Checking bridge...</p>
+        </div>
+      </div>
+      <button id="refresh">Refresh</button>
+    </header>
+
+    <section class="controls">
+      <div class="card security-card">
+        <div class="security-row">
+          <div>
+            <div class="section-title">Browser automation</div>
+            <p class="security-hint">When off, agents cannot click, type, or snapshot pages. Chat still works.</p>
+          </div>
+          <label class="toggle" title="Allow Cursor agents to control the browser">
+            <input id="automation-enabled" type="checkbox">
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-label" id="automation-label">Off</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card grid-two">
+        <label>
+          Theme
+          <select id="theme">
+            <option value="auto">Auto</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </label>
+        <label>
+          Cursor thread
+          <select id="thread"></select>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Run Cursor In</div>
+        <label>
+          Project
+          <select id="workspace"></select>
+        </label>
+        <div class="row">
+          <input id="workspace-path" type="text" placeholder="/absolute/path/to/project">
+          <button id="add-workspace" type="button">Add</button>
+        </div>
+      </div>
+
+      <div class="card grid-two">
+        <label>
+          Model
+          <select id="model"></select>
+        </label>
+        <label>
+          Permissions
+          <select id="permission-mode">
+            <option value="allow-once">Ask each time</option>
+            <option value="allow-always">Allow for session</option>
+            <option value="reject-once">Deny tools</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Browser Target</div>
+        <label>
+          Scope
+          <select id="target">
+            <option value="active-tab">Active tab</option>
+            <option value="selected-tab">Specific tab in this workspace</option>
+            <option value="all-tabs-context">All tabs in this workspace</option>
+          </select>
+        </label>
+        <label>
+          Current Vivaldi workspace tabs
+          <select id="tabs"></select>
+        </label>
+        <div id="workspace-pills" class="pills"></div>
+      </div>
+    </section>
+
+    <section class="context card">
+      <div class="section-title">What Cursor Will See</div>
+      <div id="context-summary" class="context-summary"></div>
+      <details>
+        <summary>Show raw context</summary>
+        <pre id="context"></pre>
+      </details>
+    </section>
+
+    <section id="agent-activity" class="agent-activity card hidden">
+      <div class="section-title">Agent activity</div>
+      <ul id="activity-list"></ul>
+    </section>
+
+    <section id="messages" class="messages"></section>
+
+    <section class="card quick-prompts">
+      <div class="section-title">Quick prompts</div>
+      <div id="quick-prompts" class="quick-prompt-row"></div>
+    </section>
+
+    <form id="chat-form">
+      <textarea id="prompt" rows="4" placeholder="Tell Cursor what to do in this browser/project..."></textarea>
+      <div class="form-actions">
+        <button type="button" id="cancel" class="secondary hidden">Cancel</button>
+        <button type="submit" id="send">Send</button>
+      </div>
+    </form>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

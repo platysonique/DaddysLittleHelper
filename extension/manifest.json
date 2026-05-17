@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "DaddysLittleHelper",
+  "version": "0.3.2",
+  "description": "Vivaldi side-panel control surface for Cursor CLI browser automation.",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs", "webNavigation", "debugger"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1/*", "http://localhost/*"],
+  "action": {
+    "default_title": "DaddysLittleHelper"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "type": "module",
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}
