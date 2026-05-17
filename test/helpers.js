@@ -5,18 +5,29 @@ import { fileURLToPath } from "node:url";
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+const DEFAULT_RECT = {
+  left: 0,
+  top: 0,
+  right: 120,
+  bottom: 32,
+  width: 120,
+  height: 32,
+  x: 0,
+  y: 0
+};
+
 export function setupDom(html) {
   const dom = new JSDOM(html, { url: "https://example.com" });
   const doc = dom.window.document;
   const view = dom.window;
-  // jsdom often returns null from elementFromPoint; treat elements as reachable in unit tests.
-  doc.elementFromPoint = (x, y) => {
-    const stack = doc.elementsFromPoint?.(x, y);
-    if (stack?.length) return stack[0];
-    const el = doc.elementFromPoint?.call(doc, x, y);
-    if (el) return el;
-    return doc.body;
+
+  // jsdom layout: zero-size boxes hide every node in isVisible().
+  dom.window.Element.prototype.getBoundingClientRect = function () {
+    return { ...DEFAULT_RECT };
   };
+
+  // jsdom often returns null from elementFromPoint; treat elements as reachable in unit tests.
+  doc.elementFromPoint = () => doc.body;
   if (!view.Node) view.Node = { ELEMENT_NODE: 1 };
   return dom;
 }
