@@ -43,7 +43,23 @@ function option(value, label) {
   return item;
 }
 
+const PROMPT_LEAK_RE =
+  /You are DaddysLittleHelper|Hard constraints:|AGENT_PROJECT_RESUME|Selected project:|User request:/;
+
+function sanitizeForDisplay(text) {
+  if (!text) return "";
+  const trimmed = String(text).trim();
+  if (/^AGENT_PROJECT_RESUME\s*$/i.test(trimmed)) return "";
+  if (trimmed.length > 80 && PROMPT_LEAK_RE.test(trimmed)) {
+    const match = trimmed.match(/User request:\s*([\s\S]+)$/i);
+    return match ? match[1].trim() : "";
+  }
+  return trimmed;
+}
+
 function addMessage(role, text, { markdown = role === "assistant" } = {}) {
+  text = sanitizeForDisplay(text);
+  if (!text) return null;
   const el = document.createElement("div");
   el.className = `message ${role}`;
   if (markdown && text) {
@@ -402,7 +418,7 @@ let assistantMarkdown = "";
 let lastAssistantChunk = "";
 
 function isPromptLeak(text) {
-  return Boolean(text && text.length > 80 && PROMPT_LEAK_RE.test(text));
+  return Boolean(text && sanitizeForDisplay(text) === "");
 }
 
 function setAssistantMarkdown(assistantEl, text) {
