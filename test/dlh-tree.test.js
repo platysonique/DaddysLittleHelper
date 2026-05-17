@@ -10,6 +10,7 @@ import {
   implicitRole,
   GEN_KEY
 } from "../extension/lib/dlh-tree.js";
+import { memoryStorage } from "./helpers.js";
 
 const visibleStyle = () => ({ display: "block", visibility: "visible", opacity: "1", pointerEvents: "auto" });
 
@@ -32,7 +33,7 @@ test("buildInteractiveTree v2 assigns refs and index", () => {
     </main>
   `);
   const doc = dom.window.document;
-  const storage = dom.window.sessionStorage;
+  const storage = memoryStorage();
   const tree = buildInteractiveTree(doc, { doc, storage, getComputedStyleFn: visibleStyle });
   assert.equal(tree.format, "dlh-tree-v2");
   assert.ok(tree.refGeneration >= 1);
@@ -45,7 +46,7 @@ test("buildInteractiveTree v2 assigns refs and index", () => {
 test("findInIndex returns label matches", () => {
   const dom = new JSDOM(`<button>Checkout</button><button>Cancel</button>`);
   const doc = dom.window.document;
-  const tree = buildInteractiveTree(doc, { doc, storage: dom.window.sessionStorage, getComputedStyleFn: visibleStyle });
+  const tree = buildInteractiveTree(doc, { doc, storage: memoryStorage(), getComputedStyleFn: visibleStyle });
   const matches = findInIndex(tree.index, "checkout");
   assert.equal(matches.length, 1);
   assert.match(matches[0].name, /Checkout/i);
@@ -58,8 +59,7 @@ test("labelOfElement uses aria-label", () => {
 });
 
 test("assertRefGeneration rejects stale generation", () => {
-  const dom = new JSDOM(`<div></div>`);
-  const storage = dom.window.sessionStorage;
+  const storage = memoryStorage();
   storage.setItem(GEN_KEY, "3");
   assert.throws(() => assertRefGeneration(1, storage), /Stale snapshot/);
 });

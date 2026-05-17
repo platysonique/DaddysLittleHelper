@@ -7,8 +7,10 @@ import {
   runBrowserCommand,
   waitForJob
 } from "../bridge/browser-hub.js";
+import { enableAutomationForTests } from "./helpers.js";
 
 test("browser hub queues and completes commands", async () => {
+  await enableAutomationForTests();
   const waitPromise = waitForJob(2000);
   const runPromise = runBrowserCommand("snapshot", {}, { timeoutMs: 3000 });
   const job = await waitPromise;
