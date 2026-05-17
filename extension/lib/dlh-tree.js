@@ -214,7 +214,7 @@ function stateOf(el, doc) {
 function shortPath(el) {
   const bits = [];
   let node = el;
-  while (node && node.nodeType === Node.ELEMENT_NODE && bits.length < 5) {
+  while (node && node.nodeType === 1 && bits.length < 5) {
     const tag = node.tagName?.toLowerCase() || "node";
     const id = node.id ? `#${node.id}` : "";
     const testId = node.getAttribute?.("data-testid");
