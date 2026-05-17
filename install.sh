@@ -287,6 +287,13 @@ print_summary() {
   log "Fallback: vivaldi-dlh"
   log "Re-run ./install.sh anytime to update again."
   echo ""
+  echo "================================================================"
+  echo "  FINISHED — you can close this terminal window."
+  echo "  The bridge keeps running in the background (systemd user"
+  echo "  service: daddyslittlehelper). You do NOT need this terminal"
+  echo "  open for DaddysLittleHelper to work."
+  echo "================================================================"
+  echo ""
 }
 
 main() {
@@ -314,16 +321,13 @@ main() {
   install_cursor_cli
   install_npm_deps
   run_core_setup
-  print_summary
 
-  if [ "${SKIP_DOCTOR}" = 1 ]; then
-    return 0
-  fi
-  if command -v agent >/dev/null 2>&1; then
+  if [ "${SKIP_DOCTOR}" != 1 ] && command -v agent >/dev/null 2>&1; then
+    log "Running doctor (optional health check)…"
     node "${ROOT}/scripts/doctor.js" || true
-  else
-    log "Doctor skipped — install Cursor CLI first."
   fi
+
+  print_summary
 }
 
 main "$@"

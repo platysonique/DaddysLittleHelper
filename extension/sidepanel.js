@@ -57,18 +57,29 @@ function sanitizeForDisplay(text) {
   return trimmed;
 }
 
+function friendlyFetchError(error) {
+  const msg = error?.message || String(error || "");
+  if (error?.name === "TypeError" && /fetch/i.test(msg)) {
+    return "Bridge not reachable at http://127.0.0.1:3847. Run ./install.sh in the project folder, then click Refresh.";
+  }
+  return msg || "Unknown error";
+}
+
 function addMessage(role, text, { markdown = role === "assistant" } = {}) {
-  text = sanitizeForDisplay(text);
-  if (!text) return null;
+  const isPlaceholder = role === "assistant" && !String(text || "").trim();
+  if (!isPlaceholder) {
+    text = sanitizeForDisplay(text);
+    if (!text) return null;
+  }
   const el = document.createElement("div");
   el.className = `message ${role}`;
-  if (markdown && text) {
+  if (markdown) {
     const body = document.createElement("div");
     body.className = "md";
-    body.innerHTML = renderMarkdown(text);
+    body.innerHTML = isPlaceholder ? "" : renderMarkdown(text);
     el.appendChild(body);
   } else {
-    el.textContent = text;
+    el.textContent = isPlaceholder ? "" : text;
   }
   elements.messages.appendChild(el);
   elements.messages.scrollTop = elements.messages.scrollHeight;
@@ -219,18 +230,28 @@ function setChatBusy(busy) {
 }
 
 async function jsonFetch(path, options = {}) {
-  const response = await fetch(`${BRIDGE_URL}${path}`, {
-    ...options,
-    headers: {
-      "content-type": "application/json",
-      ...(options.headers || {})
-    }
-  });
+  let response;
+  try {
+    response = await fetch(`${BRIDGE_URL}${path}`, {
+      ...options,
+      headers: {
+        "content-type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+  } catch (error) {
+    throw new Error(friendlyFetchError(error));
+  }
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`${response.status}: ${body}`);
   }
   return response.json();
+}
+
+function setBridgeOfflineStatus(error) {
+  const detail = error ? friendlyFetchError(error) : "Run ./install.sh, then Refresh";
+  elements.status.textContent = `Bridge offline — ${detail}`;
 }
 
 function runtimeMessage(message) {
@@ -270,8 +291,15 @@ async function saveAutomationEnabled(enabled) {
 }
 
 async function loadBridge() {
-  const [health, browser, settings] = await Promise.all([
-    jsonFetch("/health"),
+  let health;
+  try {
+    health = await jsonFetch("/health");
+  } catch (error) {
+    setBridgeOfflineStatus(error);
+    return;
+  }
+
+  const [browser, settings] = await Promise.all([
     jsonFetch("/browser/status").catch(() => ({ connected: false, browserAutomationEnabled: false })),
     jsonFetch("/settings").catch(() => ({ browserAutomationEnabled: false }))
   ]);
@@ -292,10 +320,17 @@ async function loadBridge() {
   }
   elements.status.textContent = `${health.service} ready · ${automation}`;
 
-  const [{ models }, { workspaces }] = await Promise.all([
-    jsonFetch("/models"),
-    jsonFetch("/workspaces")
-  ]);
+  let models;
+  let workspaces;
+  try {
+    [{ models }, { workspaces }] = await Promise.all([
+      jsonFetch("/models"),
+      jsonFetch("/workspaces")
+    ]);
+  } catch (error) {
+    elements.status.textContent = `${health.service} ready (partial) — ${friendlyFetchError(error)}`;
+    return;
+  }
 
   elements.model.replaceChildren(...models.map((model) => option(model.id, model.label || model.id)));
   elements.workspace.replaceChildren(...workspaces.map((workspace) => option(workspace.id, `${workspace.name} — ${workspace.path}`)));
@@ -306,8 +341,12 @@ async function loadBridge() {
   if (stored.dlhPermissionMode) elements.permissionMode.value = stored.dlhPermissionMode;
   setTheme(stored.dlhTheme || "auto");
 
-  await Promise.all([loadTabs(), loadQuickPrompts(), loadCursorThreads(stored.dlhCursorThread)]);
-  await refreshContext();
+  await Promise.all([
+    loadTabs().catch(() => {}),
+    loadQuickPrompts().catch(() => {}),
+    loadCursorThreads(stored.dlhCursorThread).catch(() => {})
+  ]);
+  await refreshContext().catch(() => {});
 }
 
 async function loadCursorThreads(preferredThreadId) {
@@ -450,7 +489,7 @@ async function sendPrompt(event) {
   const message = elements.prompt.value.trim();
   if (!message) return;
   elements.prompt.value = "";
-  await refreshContext();
+  await refreshContext().catch(() => {});
 
   await chrome.storage.local.set({
     dlhModel: elements.model.value,
@@ -460,28 +499,41 @@ async function sendPrompt(event) {
   });
 
   addMessage("user", message);
-  const assistant = addMessage("assistant", "") || addMessage("assistant", "…");
+  const assistant = addMessage("assistant", "");
+  if (!assistant) {
+    addMessage("event", "Could not open assistant message area.");
+    return;
+  }
   assistantMarkdown = "";
   lastAssistantChunk = "";
   setChatBusy(true);
   startActivityPoll();
   activeChatSessionId = null;
 
-  const response = await fetch(`${BRIDGE_URL}/chat`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      message,
-      model: elements.model.value,
-      workspaceId: elements.workspace.value,
-      permissionMode: elements.permissionMode.value,
-      cursorChatId: currentCursorChatId || elements.thread.value || undefined,
-      context: currentContext
-    })
-  });
+  let response;
+  try {
+    response = await fetch(`${BRIDGE_URL}/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message,
+        model: elements.model.value,
+        workspaceId: elements.workspace.value,
+        permissionMode: elements.permissionMode.value,
+        cursorChatId: currentCursorChatId || elements.thread.value || undefined,
+        context: currentContext
+      })
+    });
+  } catch (error) {
+    replaceAssistantText(assistant, `**Bridge error:** ${friendlyFetchError(error)}`);
+    setChatBusy(false);
+    stopActivityPoll();
+    return;
+  }
 
   if (!response.ok || !response.body) {
-    assistant.textContent = await response.text();
+    const errText = await response.text().catch(() => "Chat request failed.");
+    replaceAssistantText(assistant, errText);
     setChatBusy(false);
     stopActivityPoll();
     return;
@@ -531,6 +583,8 @@ async function sendPrompt(event) {
         }
       });
     }
+  } catch (error) {
+    replaceAssistantText(assistant, `**Error:** ${friendlyFetchError(error)}`);
   } finally {
     setChatBusy(false);
     stopActivityPoll();
@@ -540,11 +594,15 @@ async function sendPrompt(event) {
 
 async function cancelChat() {
   if (!activeChatSessionId) return;
-  await jsonFetch("/chat/cancel", {
-    method: "POST",
-    body: JSON.stringify({ chatSessionId: activeChatSessionId })
-  });
-  addMessage("event", "Cancelling…");
+  try {
+    await jsonFetch("/chat/cancel", {
+      method: "POST",
+      body: JSON.stringify({ chatSessionId: activeChatSessionId })
+    });
+    addMessage("event", "Cancelling…");
+  } catch (error) {
+    addMessage("event", friendlyFetchError(error));
+  }
 }
 
 elements.automationEnabled.addEventListener("change", async () => {
@@ -558,8 +616,14 @@ elements.automationEnabled.addEventListener("change", async () => {
   }
 });
 
-elements.refresh.addEventListener("click", loadBridge);
-elements.addWorkspace.addEventListener("click", addWorkspace);
+elements.refresh.addEventListener("click", () => {
+  loadBridge().catch((error) => setBridgeOfflineStatus(error));
+});
+elements.addWorkspace.addEventListener("click", () => {
+  addWorkspace().catch((error) => {
+    elements.status.textContent = `Add project failed: ${friendlyFetchError(error)}`;
+  });
+});
 elements.theme.addEventListener("change", async () => {
   setTheme(elements.theme.value);
   await chrome.storage.local.set({ dlhTheme: elements.theme.value });
@@ -589,6 +653,4 @@ chrome.runtime.onMessage.addListener((message) => {
   });
 });
 
-loadBridge().catch((error) => {
-  elements.status.textContent = `Bridge unavailable: ${error.message}`;
-});
+loadBridge().catch((error) => setBridgeOfflineStatus(error));

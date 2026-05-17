@@ -8,6 +8,8 @@ One script does everything: **install**, **update**, and **repair**. Safe to rer
 
 Run `npm run setup` or `npm run update` (same script). For dependencies only: `npm ci --ignore-scripts`.
 
+When `install.sh` finishes, it prints **FINISHED — you can close this terminal window.** The bridge runs as a background user service; you do not need to keep the terminal open.
+
 ## Requirements
 
 - Linux (Vivaldi or Chromium-based browser)
