@@ -229,6 +229,7 @@ export function buildInteractiveTree(root, { doc = document, getComputedStyleFn 
   root.querySelectorAll(`[${REF_ATTR}]`).forEach((el) => el.removeAttribute(REF_ATTR));
 
   const refGeneration = nextRefGeneration(storage);
+  const ELEMENT_NODE = doc.defaultView?.Node?.ELEMENT_NODE ?? 1;
   const lines = [];
   const index = [];
   let assigned = 0;
@@ -248,7 +249,7 @@ export function buildInteractiveTree(root, { doc = document, getComputedStyleFn 
     const { el, depth } = stack.pop();
     if (!el || depth > MAX_DEPTH) continue;
 
-    if (el.nodeType !== Node.ELEMENT_NODE || isAriaHidden(el) || isInert(el)) {
+    if (el.nodeType !== ELEMENT_NODE || isAriaHidden(el) || isInert(el)) {
       pushChildren(el, depth);
       continue;
     }
