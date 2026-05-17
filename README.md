@@ -9,7 +9,7 @@ Vivaldi side panel + local bridge + **Cursor CLI** browser automation. No Playwr
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_USER/DaddysLittleHelper.git
+git clone https://github.com/platysonique/DaddysLittleHelper.git
 cd DaddysLittleHelper
 ./install.sh
 agent login
@@ -17,6 +17,8 @@ agent mcp enable dlh-browser   # if needed
 ```
 
 Restart Vivaldi. In the side panel, turn **Browser automation** **On** (off by default for security). Run `npm run doctor`.
+
+**Update later:** `cd DaddysLittleHelper && ./install.sh` (pulls from git when already installed and the tree is clean).
 
 Full details: [INSTALL.md](INSTALL.md)
 
@@ -31,7 +33,7 @@ Full details: [INSTALL.md](INSTALL.md)
 ```bash
 npm test
 npm run doctor
-./install.sh    # idempotent after changes
+./install.sh    # install, update, or repair (idempotent)
 ```
 
 Extension source: `extension/` (installed copy under `~/.local/share/daddyslittlehelper/extension`).
@@ -40,7 +42,7 @@ Extension source: `extension/` (installed copy under `~/.local/share/daddyslittl
 
 | Path | Role |
 |------|------|
-| `install.sh` | Idempotent installer |
+| `install.sh` | Install, update, and repair (all-in-one) |
 | `extension/` | MV3 extension |
 | `bridge/` | Node HTTP bridge + chat |
 | `mcp/dlh-browser.js` | MCP stdio server |

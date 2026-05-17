@@ -13,6 +13,7 @@
     "ensure:mcp": "node scripts/ensure-mcp.js",
     "setup:service": "node scripts/setup-service.js",
     "install": "bash install.sh",
+    "update": "bash install.sh",
     "models": "node -e \"import('./bridge/models.js').then(async m => console.log(JSON.stringify(await m.listModels(), null, 2)))\""
   },
   "engines": {

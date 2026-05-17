@@ -1,43 +1,68 @@
-# Install DaddysLittleHelper
+# Install & update DaddysLittleHelper
 
-Three commands. Safe to rerun.
+One script does everything: **install**, **update**, and **repair**. Safe to rerun.
+
+```bash
+./install.sh
+```
+
+Same as `npm install` or `npm run update`.
 
 ## Requirements
 
 - Linux (Vivaldi or Chromium-based browser)
 - Node.js 20+
 - `curl`, `openssl`, `systemd` (user session)
+- `git` (optional, for in-place updates via pull)
 
-Optional: `chromium` or `google-chrome` on PATH — packs a `.crx` so Vivaldi installs the extension **without** using *Load unpacked*.
+Optional: `chromium` or `google-chrome` on PATH — packs a `.crx` for silent extension install.
 
-## Install
+## First install
 
 ```bash
-git clone https://github.com/YOUR_USER/DaddysLittleHelper.git
+git clone https://github.com/platysonique/DaddysLittleHelper.git
+cd DaddysLittleHelper
+./install.sh
+agent login
+```
+
+Restart Vivaldi. In the side panel, turn **Browser automation** **On** (default is off for security).
+
+## Update (same script)
+
+After `git pull` or copying new files into your clone:
+
+```bash
 cd DaddysLittleHelper
 ./install.sh
 ```
 
-Or:
+On **update**, the script by default:
+
+1. Runs `git pull --ff-only` if the repo is clean (no local uncommitted changes)
+2. Refreshes npm dependencies
+3. Re-syncs the extension to `~/.local/share/daddyslittlehelper/extension`
+4. Re-registers Vivaldi External Extensions / CRX
+5. Updates MCP config and **restarts** the bridge (`systemd --user`)
+
+Then restart Vivaldi once so the extension reloads.
+
+### Options
+
+| Flag | Effect |
+|------|--------|
+| `--pull` | Always `git pull --ff-only` (install or update) |
+| `--no-pull` | Never pull; use files already on disk |
+| `--no-git` | Skip all git operations |
+| `--skip-doctor` | Skip health check at the end |
+| `--help` | Show usage |
+
+Examples:
 
 ```bash
-npm install
+./install.sh --pull          # update from remote, then apply
+./install.sh --no-pull       # you already git pull'd; just sync services
 ```
-
-(`npm install` runs the same `install.sh`.)
-
-## One-time after install
-
-```bash
-agent login
-agent mcp enable dlh-browser   # if install did not already
-```
-
-Restart **Vivaldi** (or start it with `vivaldi-dlh`). The extension should appear automatically.
-
-## Security toggle
-
-In the side panel, turn **Browser automation** **On** when you want Cursor agents to control the browser. It defaults to **Off** so nothing can click or snapshot until you allow it. Chat and project context still work when Off.
 
 ## Verify
 
@@ -45,49 +70,19 @@ In the side panel, turn **Browser automation** **On** when you want Cursor agent
 npm run doctor
 ```
 
-Expect **Extension registered for Vivaldi** and (with Vivaldi open) **Extension linked to bridge**.
+## State file
 
-## What install does
+`~/.config/daddyslittlehelper/install.env` records:
 
-| Step | Result |
-|------|--------|
-| `~/.config/daddyslittlehelper/install.env` | Records your clone path |
-| `~/.local/share/daddyslittlehelper/extension` | Stable extension copy |
-| `~/.config/vivaldi/External Extensions/<id>.json` | Auto-load on browser start |
-| `~/.cursor/mcp.json` | Registers `dlh-browser` MCP |
-| `systemd --user` `daddyslittlehelper` | Bridge on `http://127.0.0.1:3847` |
-| `~/.local/bin/vivaldi-dlh` | Fallback: always `--load-extension` |
+- `DLH_ROOT` — your clone path  
+- `DLH_VERSION` — last applied package version  
+- `INSTALLED_AT` / `UPDATED_AT`  
 
-## Flatpak Vivaldi
+Second and later runs are detected as **update mode** automatically.
 
-Install also writes:
+## Security toggle
 
-`~/.var/app/com.vivaldi.Vivaldi/config/vivaldi/External Extensions/`
-
-Restart the Flatpak app after install.
-
-## Troubleshooting
-
-**Extension not listed**
-
-1. Rerun `./install.sh`
-2. Install `chromium` for CRX packaging: `sudo apt install chromium` (Debian/Ubuntu)
-3. Start with: `vivaldi-dlh`
-4. Last resort: `vivaldi://extensions` → Developer mode → Load unpacked → `~/.local/share/daddyslittlehelper/extension`
-
-**Bridge not running**
-
-```bash
-systemctl --user status daddyslittlehelper
-systemctl --user restart daddyslittlehelper
-```
-
-**MCP not ready**
-
-```bash
-agent mcp list
-agent mcp enable dlh-browser
-```
+Side panel → **Browser automation** → **On** when agents may control the browser. Off by default.
 
 ## Uninstall
 
@@ -95,10 +90,10 @@ agent mcp enable dlh-browser
 systemctl --user disable --now daddyslittlehelper
 rm -f ~/.config/systemd/user/daddyslittlehelper.service
 rm -rf ~/.local/share/daddyslittlehelper
-rm -f ~/.config/daddyslittlehelper/install.env ~/.config/daddyslittlehelper/extension.json
+rm -rf ~/.config/daddyslittlehelper
 rm -f ~/.local/bin/vivaldi-dlh
-# Remove External Extensions/*.json under your Vivaldi config (see extension.json registeredDirs)
+# Remove External Extensions/*.json under Vivaldi config (see extension.json)
 systemctl --user daemon-reload
 ```
 
-Remove `dlh-browser` from `~/.cursor/mcp.json` manually if desired.
+Remove `dlh-browser` from `~/.cursor/mcp.json` if desired.
