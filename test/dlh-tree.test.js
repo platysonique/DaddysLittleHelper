@@ -10,7 +10,7 @@ import {
   implicitRole,
   GEN_KEY
 } from "../extension/lib/dlh-tree.js";
-import { memoryStorage } from "./helpers.js";
+import { memoryStorage, setupDom } from "./helpers.js";
 
 const visibleStyle = () => ({ display: "block", visibility: "visible", opacity: "1", pointerEvents: "auto" });
 
@@ -23,7 +23,7 @@ test("scoreElement prefers buttons and ARIA roles", () => {
 });
 
 test("buildInteractiveTree v2 assigns refs and index", () => {
-  const dom = new JSDOM(`
+  const dom = setupDom(`
     <main>
       <h1>Title</h1>
       <button id="go">Go</button>
@@ -44,7 +44,7 @@ test("buildInteractiveTree v2 assigns refs and index", () => {
 });
 
 test("findInIndex returns label matches", () => {
-  const dom = new JSDOM(`<button>Checkout</button><button>Cancel</button>`);
+  const dom = setupDom(`<button>Checkout</button><button>Cancel</button>`);
   const doc = dom.window.document;
   const tree = buildInteractiveTree(doc, { doc, storage: memoryStorage(), getComputedStyleFn: visibleStyle });
   const matches = findInIndex(tree.index, "checkout");
