@@ -109,7 +109,11 @@ try {
 failures += line(extensionInstalled, "Extension registered for Vivaldi", extensionDetail);
 
 const tests = await command("npm", ["test"], { cwd: projectRoot });
-failures += line(tests.ok, "Unit tests", tests.stderr.trim() || "ok");
+failures += line(
+  tests.ok,
+  "Unit tests",
+  tests.ok ? "ok" : (tests.stderr.trim() || tests.stdout.trim() || `exit ${tests.code}`)
+);
 
 console.log("\nNotes:");
 console.log("- After ./install.sh, restart Vivaldi once so External Extensions load.");

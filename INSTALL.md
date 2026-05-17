@@ -6,7 +6,7 @@ One script does everything: **install**, **update**, and **repair**. Safe to rer
 ./install.sh
 ```
 
-Same as `npm install` or `npm run update`.
+Run `npm run setup` or `npm run update` (same script). For dependencies only: `npm ci --ignore-scripts`.
 
 ## Requirements
 

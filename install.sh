@@ -218,13 +218,14 @@ install_cursor_cli() {
 install_npm_deps() {
   cd "${ROOT}"
   mkdir -p "${LOG_DIR}"
+  # --ignore-scripts: never run package.json "install"/lifecycle hooks (avoids recursion with setup).
   if [ -f package-lock.json ]; then
-    log "npm ci"
-    npm ci --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log" \
-      || npm install --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log"
+    log "npm ci --ignore-scripts"
+    npm ci --ignore-scripts --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log" \
+      || npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log"
   else
-    log "npm install"
-    npm install --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log"
+    log "npm install --ignore-scripts"
+    npm install --ignore-scripts --no-audit --no-fund 2>&1 | tee -a "${LOG_DIR}/npm-install.log"
   fi
 }
 
@@ -290,6 +291,7 @@ print_summary() {
 
 main() {
   mkdir -p "${CONFIG_DIR}" "${LOG_DIR}" "${HOME}/.local/bin" "${HOME}/.cursor"
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 
   parse_args "$@"
   detect_mode

@@ -18,7 +18,7 @@ agent mcp enable dlh-browser   # if needed
 
 Restart Vivaldi. In the side panel, turn **Browser automation** **On** (off by default for security). Run `npm run doctor`.
 
-**Update later:** `cd DaddysLittleHelper && ./install.sh` (pulls from git when already installed and the tree is clean).
+**Update later:** `cd DaddysLittleHelper && ./install.sh` (pulls from git when already installed and the tree is clean). Use `npm run setup` / `npm run update` as aliases.
 
 Full details: [INSTALL.md](INSTALL.md)
 
