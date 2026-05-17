@@ -19,7 +19,7 @@ export function buildPrompt({
     : "";
 
   const automationLine = browserAutomationEnabled
-    ? "- Browser automation is ON. Use dlh-browser MCP tools (dlh_browser_snapshot, dlh_browser_click, dlh_browser_type, dlh_browser_navigate, etc.) against the user's daily Vivaldi tabs. Escalation to CDP is automatic on hard pages."
+    ? "- Browser automation is ON. You MUST use dlh-browser MCP tools (dlh_browser_navigate, dlh_browser_snapshot, dlh_browser_click, etc.) for any browser action. Do not claim tools are missing if dlh-browser is configured. Escalation to CDP is automatic on hard pages."
     : "- Browser automation is OFF (user security toggle in the side panel). Do NOT call dlh-browser or any browser control tools. Answer using text and project context only.";
 
   const browserPlaybook = browserAutomationEnabled
@@ -59,5 +59,45 @@ Thread:
 - Prior messages in DaddysLittleHelper store: ${thread?.messages?.length || 0}
 
 User request:
+${userText}`;
+}
+
+/**
+ * Prompt for `agent -p` (print mode). Never pass the full ACP wall on --resume —
+ * Cursor already has thread context and echoing it floods the side panel.
+ */
+export function buildPrintPrompt({
+  userText,
+  workspace,
+  model,
+  context,
+  browserAutomationEnabled = false,
+  cursorChatId = null
+}) {
+  const page = context?.page || {};
+  const tab = context?.tab || {};
+  const hints = [];
+
+  if (page.url || tab.url) {
+    hints.push(`Active tab: ${page.title || tab.title || "Untitled"} — ${page.url || tab.url}`);
+  }
+  if (page.selection) {
+    hints.push(`Selected text: ${page.selection.slice(0, 1200)}`);
+  } else if (page.excerpt) {
+    hints.push(`Page excerpt: ${page.excerpt.slice(0, 1200)}`);
+  }
+
+  if (cursorChatId) {
+    if (!hints.length) return userText;
+    return `${hints.join("\n")}\n\n${userText}`;
+  }
+
+  const automation = browserAutomationEnabled
+    ? "Browser automation is ON (dlh-browser MCP)."
+    : "Browser automation is OFF — do not use dlh-browser tools.";
+
+  return `[DaddysLittleHelper · ${workspace.path} · ${automation}]
+${hints.join("\n")}
+
 ${userText}`;
 }

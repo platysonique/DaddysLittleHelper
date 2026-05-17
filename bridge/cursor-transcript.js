@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { sanitizeChatDisplayText } from "./stream-filter.js";
 
 const CURSOR_HOME = process.env.CURSOR_HOME || join(homedir(), ".cursor");
 
@@ -23,10 +24,7 @@ function extractText(content) {
 }
 
 function cleanDisplayText(text) {
-  return String(text || "")
-    .replace(/<\/?user_query>/gi, "")
-    .replace(/<\/?assistant_query>/gi, "")
-    .trim();
+  return sanitizeChatDisplayText(text);
 }
 
 export async function loadCursorTranscript({ workspacePath, threadId }) {

@@ -115,7 +115,7 @@ export class AcpClient extends EventEmitter {
       clientInfo: { name: "DaddysLittleHelper", version: "0.1.0" }
     });
     await this.send("authenticate", { methodId: "cursor_login" });
-    const session = await this.send("session/new", { cwd: this.cwd, mcpServers: [] });
+    const session = await this.send("session/new", { cwd: this.cwd });
     this.sessionId = session?.sessionId;
     if (!this.sessionId) throw new Error("ACP session/new did not return a sessionId.");
     this.ready = true;

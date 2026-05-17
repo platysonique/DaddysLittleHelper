@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import readline from "node:readline";
 import { AGENT_BIN, DEFAULT_MODEL } from "./config.js";
+import { filterStreamEvent } from "./stream-filter.js";
 
 export function startPrintAgent({ cwd, model = DEFAULT_MODEL, prompt, cursorChatId, onEvent }) {
   const args = [
@@ -24,7 +25,9 @@ export function startPrintAgent({ cwd, model = DEFAULT_MODEL, prompt, cursorChat
 
   const final = [];
   child.stderr.on("data", (chunk) => {
-    onEvent?.({ type: "stderr", text: String(chunk) });
+    const text = String(chunk);
+    if (!text.trim()) return;
+    onEvent?.({ type: "stderr", text });
   });
 
   const rl = readline.createInterface({ input: child.stdout });
@@ -32,10 +35,11 @@ export function startPrintAgent({ cwd, model = DEFAULT_MODEL, prompt, cursorChat
     if (!line.trim()) return;
     try {
       const event = JSON.parse(line);
-      onEvent?.(event);
+      const filtered = filterStreamEvent(event);
+      if (filtered) onEvent?.(filtered);
       if (event.type === "result") final.push(event);
     } catch {
-      onEvent?.({ type: "stdout", text: line });
+      // Non-JSON lines are usually noise; do not forward to the panel.
     }
   });
 

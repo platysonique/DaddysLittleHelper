@@ -3,7 +3,13 @@ import { mkdir } from "node:fs/promises";
 import { AcpClient } from "./acp-client.js";
 import { DATA_DIR, DEFAULT_HOST, DEFAULT_MODEL, DEFAULT_PORT, THREAD_DIR } from "./config.js";
 import { listModels } from "./models.js";
-import { buildPrompt } from "./prompt.js";
+import { buildPrintPrompt, buildPrompt } from "./prompt.js";
+import {
+  eventTextFromStreamEvent,
+  filterStreamEvent,
+  isFullAssistantSnapshot,
+  isLeakedPromptText
+} from "./stream-filter.js";
 import { addWorkspace, loadWorkspaces, resolveWorkspace } from "./workspaces.js";
 import { createCursorChat, listCursorThreads } from "./cursor-threads.js";
 import { loadCursorTranscript } from "./cursor-transcript.js";
@@ -122,6 +128,10 @@ async function handleChat(req, res) {
     }
   }
   const useCursorThread = Boolean(cursorChatId);
+  const settings = await loadSettings();
+  const browserAutomationEnabled = Boolean(settings.browserAutomationEnabled);
+  // Resume mode (`agent -p --resume`) does not load MCP tools; use ACP when automation is on.
+  const preferAcp = browserAutomationEnabled || !useCursorThread;
 
   let thread = null;
   if (!useCursorThread) {
@@ -142,43 +152,72 @@ async function handleChat(req, res) {
   }
 
   const settings = await loadSettings();
-  const prompt = buildPrompt({
-    userText: body.message || "",
+  const userMessage = body.message || "";
+  const acpPrompt = buildPrompt({
+    userText: userMessage,
     workspace,
     model,
     context: body.context || {},
     thread,
     cursorChatId,
-    browserAutomationEnabled: settings.browserAutomationEnabled
+    browserAutomationEnabled
+  });
+  const printPrompt = buildPrintPrompt({
+    userText: userMessage,
+    workspace,
+    model,
+    context: body.context || {},
+    browserAutomationEnabled,
+    cursorChatId
   });
 
   let assistantText = "";
+  let lastAssistantSnapshot = "";
+
   const onEvent = (event) => {
-    const text = eventText(event);
-    if (text) assistantText += text;
-    const tool = toolActivityFromEvent(event);
+    const filtered = filterStreamEvent(event);
+    if (!filtered) return;
+
+    const text = eventTextFromStreamEvent(filtered) || eventText(filtered);
+    if (text) {
+      if (isFullAssistantSnapshot(filtered)) {
+        assistantText = text;
+        lastAssistantSnapshot = text;
+      } else if (!isLeakedPromptText(text) && text !== lastAssistantSnapshot) {
+        assistantText += text;
+      }
+    }
+
+    const tool = toolActivityFromEvent(filtered);
     if (tool) emit("tool-activity", tool);
-    emit("agent-event", event);
+    emit("agent-event", filtered);
+  };
+
+  const runPrint = (reason) => {
+    if (reason) emit("status", { phase: "print", detail: reason });
+    printRun = startPrintAgent({
+      cwd: workspace.path,
+      model,
+      prompt: printPrompt,
+      cursorChatId: cursorChatId || undefined,
+      onEvent
+    });
+    return printRun.promise;
   };
 
   try {
-    if (useCursorThread || body.forcePrintMode) {
-      throw new Error(useCursorThread ? "Continuing Cursor thread via CLI resume." : "Print-mode forced by request.");
+    if (!preferAcp && (useCursorThread || body.forcePrintMode)) {
+      const result = await runPrint(useCursorThread ? "cursor-thread-resume" : "print-forced");
+      emit("agent-result", result);
+    } else {
+      acpClient = await getAcpClient({ workspace, model, permissionMode });
+      const result = await acpClient.prompt({ text: acpPrompt, onEvent });
+      emit("agent-result", result || {});
     }
-    acpClient = await getAcpClient({ workspace, model, permissionMode });
-    const result = await acpClient.prompt({ text: prompt, onEvent });
-    emit("agent-result", result || {});
   } catch (acpError) {
     emit("fallback", { reason: acpError.message });
     try {
-      printRun = startPrintAgent({
-        cwd: workspace.path,
-        model,
-        prompt,
-        cursorChatId: cursorChatId || undefined,
-        onEvent
-      });
-      const result = await printRun.promise;
+      const result = await runPrint("acp-unavailable");
       emit("agent-result", result);
     } catch (printError) {
       const cancelled = /SIGTERM|killed/i.test(printError.message);

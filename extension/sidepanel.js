@@ -399,9 +399,14 @@ function parseSseChunk(buffer, onEvent) {
 }
 
 let assistantMarkdown = "";
+let lastAssistantChunk = "";
 
-function appendAssistantText(assistantEl, chunk) {
-  assistantMarkdown += chunk;
+function isPromptLeak(text) {
+  return Boolean(text && text.length > 80 && PROMPT_LEAK_RE.test(text));
+}
+
+function setAssistantMarkdown(assistantEl, text) {
+  assistantMarkdown = text;
   const body = assistantEl.querySelector(".md") || assistantEl;
   if (body.classList.contains("md")) {
     body.innerHTML = renderMarkdown(assistantMarkdown);
@@ -409,6 +414,19 @@ function appendAssistantText(assistantEl, chunk) {
     assistantEl.textContent = assistantMarkdown;
   }
   elements.messages.scrollTop = elements.messages.scrollHeight;
+}
+
+function appendAssistantText(assistantEl, chunk) {
+  if (!chunk || isPromptLeak(chunk)) return;
+  if (chunk === lastAssistantChunk) return;
+  lastAssistantChunk = chunk;
+  setAssistantMarkdown(assistantEl, assistantMarkdown + chunk);
+}
+
+function replaceAssistantText(assistantEl, text) {
+  if (!text || isPromptLeak(text)) return;
+  lastAssistantChunk = text;
+  setAssistantMarkdown(assistantEl, text);
 }
 
 async function sendPrompt(event) {
@@ -426,8 +444,9 @@ async function sendPrompt(event) {
   });
 
   addMessage("user", message);
-  const assistant = addMessage("assistant", "");
+  const assistant = addMessage("assistant", "") || addMessage("assistant", "…");
   assistantMarkdown = "";
+  lastAssistantChunk = "";
   setChatBusy(true);
   startActivityPoll();
   activeChatSessionId = null;
@@ -464,16 +483,26 @@ async function sendPrompt(event) {
         if (name === "chat-started") {
           activeChatSessionId = data.chatSessionId;
         } else if (name === "agent-event") {
-          const text =
-            data?.params?.update?.content?.text ||
-            data?.message?.content?.map?.((block) => block.text || "").join("") ||
-            data?.text ||
-            "";
-          if (text) appendAssistantText(assistant, text);
+          if (data?.type === "assistant" && data?.message?.content) {
+            const full = data.message.content.map((block) => block.text || "").join("");
+            if (full) replaceAssistantText(assistant, full);
+          } else {
+            const text =
+              data?.params?.update?.content?.text ||
+              data?.text ||
+              "";
+            if (text) appendAssistantText(assistant, text);
+          }
+        } else if (name === "status") {
+          if (data?.phase === "print" && data?.detail === "cursor-thread-resume") {
+            pushActivity("Using Cursor thread (resume)");
+          }
         } else if (name === "tool-activity") {
           pushActivity(`tool: ${data.tool}`);
         } else if (name === "fallback") {
-          addMessage("event", `Fallback: ${data.reason}`);
+          if (!/cursor thread|resume/i.test(data.reason || "")) {
+            addMessage("event", `Fallback: ${data.reason}`);
+          }
         } else if (name === "cursor-thread" && data.cursorChatId) {
           currentCursorChatId = data.cursorChatId;
           elements.thread.value = data.cursorChatId;
