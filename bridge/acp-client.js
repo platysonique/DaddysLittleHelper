@@ -53,10 +53,11 @@ export class AcpClient extends EventEmitter {
       return;
     }
 
-    if (message.id && (Object.hasOwn(message, "result") || Object.hasOwn(message, "error"))) {
+    if (Object.hasOwn(message, "id") && (Object.hasOwn(message, "result") || Object.hasOwn(message, "error"))) {
       const waiter = this.pending.get(message.id);
       if (!waiter) return;
       this.pending.delete(message.id);
+      clearTimeout(waiter.timer);
       if (message.error) waiter.reject(new Error(JSON.stringify(message.error)));
       else waiter.resolve(message.result);
       return;
@@ -85,42 +86,46 @@ export class AcpClient extends EventEmitter {
     return { outcome: { outcome: "selected", optionId } };
   }
 
-  send(method, params = {}) {
+  send(method, params = {}, { timeoutMs = 30_000 } = {}) {
     if (!this.child) this.start();
     const id = this.nextId++;
     this.child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (!this.pending.has(id)) return;
         this.pending.delete(id);
         reject(new Error(`ACP request timed out: ${method}`));
-      }, 30000);
+      }, timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
     });
   }
 
   respond(id, result) {
-    if (!id || !this.child) return;
+    if (id === undefined || id === null || !this.child) return;
     this.child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, result })}\n`);
   }
 
   async initialize() {
     this.start();
-    await this.send("initialize", {
-      protocolVersion: 1,
-      clientCapabilities: {
-        fs: { readTextFile: false, writeTextFile: false },
-        terminal: false
+    await this.send(
+      "initialize",
+      {
+        protocolVersion: 1,
+        clientCapabilities: {
+          fs: { readTextFile: false, writeTextFile: false },
+          terminal: false
+        },
+        clientInfo: { name: "DaddysLittleHelper", version: "0.1.0" }
       },
-      clientInfo: { name: "DaddysLittleHelper", version: "0.1.0" }
-    });
-    await this.send("authenticate", { methodId: "cursor_login" });
+      { timeoutMs: 60_000 }
+    );
+    await this.send("authenticate", { methodId: "cursor_login" }, { timeoutMs: 60_000 });
     const session = await this.send("session/new", {
       cwd: this.cwd,
       // Cursor ACP currently validates this field as an array even when MCP
       // servers are loaded from .cursor/mcp.json.
       mcpServers: []
-    });
+    }, { timeoutMs: 60_000 });
     this.sessionId = session?.sessionId;
     if (!this.sessionId) throw new Error("ACP session/new did not return a sessionId.");
     this.ready = true;
@@ -132,10 +137,14 @@ export class AcpClient extends EventEmitter {
     const handler = (message) => onEvent?.(message);
     this.on("notification", handler);
     try {
-      return await this.send("session/prompt", {
-        sessionId: this.sessionId,
-        prompt: [{ type: "text", text }]
-      });
+      return await this.send(
+        "session/prompt",
+        {
+          sessionId: this.sessionId,
+          prompt: [{ type: "text", text }]
+        },
+        { timeoutMs: 10 * 60_000 }
+      );
     } finally {
       this.off("notification", handler);
     }
