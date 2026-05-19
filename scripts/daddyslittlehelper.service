@@ -4,13 +4,16 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/.local/share/daddyslittlehelper
-ExecStart=/usr/bin/node bridge/server.js
+WorkingDirectory=__DLH_ROOT__
+ExecStart=__BRIDGE_SCRIPT__
 Restart=on-failure
 RestartSec=2
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=DLH_HOST=127.0.0.1
 Environment=DLH_PORT=3847
-Environment=DLH_ROOT=%h/Projects/DaddysLittleHelper
+Environment=DLH_ROOT=__DLH_ROOT__
 
 [Install]
 WantedBy=default.target

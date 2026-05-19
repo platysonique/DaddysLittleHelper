@@ -9,6 +9,7 @@
     "smoke": "node scripts/smoke.js",
     "preflight": "node scripts/preflight.js",
     "doctor": "node scripts/doctor.js",
+    "build:content": "node scripts/build-content.js",
     "test": "node --test test/*.test.js",
     "ensure:mcp": "node scripts/ensure-mcp.js",
     "setup:service": "node scripts/setup-service.js",

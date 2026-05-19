@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# DaddysLittleHelper — all-in-one install & updater (idempotent, safe to rerun).
+# DaddysLittleHelper — ONE script: extension, MCP, bridge (systemd), verify.
+# You never run systemctl, dlh-bridge, or setup-service by hand — only this file.
 #
 #   git clone … && cd DaddysLittleHelper && ./install.sh    # first install
-#   cd DaddysLittleHelper && ./install.sh                     # update in place
+#   cd DaddysLittleHelper && ./install.sh                     # update / repair in place
 #   ./install.sh --pull                                     # install/update + git pull
 #   ./install.sh --no-pull                                  # skip git pull on update
 #
@@ -18,6 +19,7 @@ MODE="install"
 DLH_PULL=""   # empty = use mode default; 0 = off; 1 = on
 DLH_NO_GIT=0
 SKIP_DOCTOR=0
+BRIDGE_ONLY=0
 
 INSTALLED_AT=""
 PREV_VERSION=""
@@ -100,6 +102,9 @@ parse_args() {
         ;;
       --skip-doctor)
         SKIP_DOCTOR=1
+        ;;
+      --bridge-only)
+        BRIDGE_ONLY=1
         ;;
       *)
         die "Unknown option: $1 (try --help)"
@@ -202,17 +207,40 @@ require_node() {
   fi
 }
 
-install_cursor_cli() {
+resolve_agent_bin() {
+  if [ -n "${DLH_AGENT_BIN:-}" ] && [ -x "${DLH_AGENT_BIN}" ]; then
+    printf '%s\n' "${DLH_AGENT_BIN}"
+    return 0
+  fi
   if command -v agent >/dev/null 2>&1; then
-    log "Cursor CLI: $(agent --version 2>/dev/null | head -1 || echo present)"
+    command -v agent
+    return 0
+  fi
+  if [ -x "${HOME}/.local/bin/agent" ]; then
+    printf '%s\n' "${HOME}/.local/bin/agent"
+    return 0
+  fi
+  return 1
+}
+
+install_cursor_cli() {
+  local agent_bin
+  if agent_bin="$(resolve_agent_bin)"; then
+    export DLH_AGENT_BIN="${agent_bin}"
+    log "Cursor CLI: ${agent_bin} ($("${agent_bin}" --version 2>/dev/null || echo present))"
     return 0
   fi
   if [ "${MODE}" = update ]; then
-    warn "Cursor CLI not found — install manually: curl -fsSL https://cursor.com/install | bash"
-    return 0
+    die "Cursor CLI 'agent' not found. Run ./install.sh from a shell where agent works, or install Cursor CLI."
   fi
   log "Installing Cursor CLI…"
   curl -fsSL https://cursor.com/install | bash
+  if agent_bin="$(resolve_agent_bin)"; then
+    export DLH_AGENT_BIN="${agent_bin}"
+    log "Cursor CLI: ${agent_bin} ($("${agent_bin}" --version 2>/dev/null || echo present))"
+    return 0
+  fi
+  die "Cursor CLI install finished, but 'agent' is still not on PATH."
 }
 
 install_npm_deps() {
@@ -230,26 +258,125 @@ install_npm_deps() {
 }
 
 enable_mcp() {
-  if ! command -v agent >/dev/null 2>&1; then
-    log "Skip agent mcp enable (Cursor CLI not available)"
-    return 0
-  fi
+  local agent_bin
+  agent_bin="$(resolve_agent_bin)" || die "Cursor CLI 'agent' not found; bridge cannot run chat."
+  export DLH_AGENT_BIN="${agent_bin}"
   node "${ROOT}/scripts/ensure-mcp.js"
-  if agent mcp enable dlh-browser 2>/dev/null; then
+  if "${agent_bin}" mcp enable dlh-browser 2>/dev/null; then
     log "dlh-browser MCP enabled"
   else
-    log "Run after login: agent mcp enable dlh-browser"
+    log "Run after login: ${agent_bin} mcp enable dlh-browser"
   fi
+}
+
+bridge_health_ok() {
+  curl -sf --max-time 2 "http://127.0.0.1:3847/health" >/dev/null 2>&1
+}
+
+install_bridge_service() {
+  local unit_dir="${HOME}/.config/systemd/user"
+  local unit_path="${unit_dir}/daddyslittlehelper.service"
+  local bridge_script="${ROOT}/scripts/run-bridge.sh"
+  local agent_bin
+
+  if ! command -v systemctl >/dev/null 2>&1; then
+    die "systemd is required (user session). Cannot install bridge."
+  fi
+
+  chmod +x "${bridge_script}"
+  bash -n "${bridge_script}" || die "Bridge launcher script is invalid: ${bridge_script}"
+  agent_bin="$(resolve_agent_bin)" || die "Cursor CLI 'agent' not found; cannot install bridge."
+  export DLH_AGENT_BIN="${agent_bin}"
+
+  mkdir -p "${unit_dir}" "${LOG_DIR}"
+  cat >"${unit_path}" <<UNIT
+[Unit]
+Description=DaddysLittleHelper local bridge
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=${ROOT}
+ExecStart=${bridge_script}
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=${HOME}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=DLH_HOST=127.0.0.1
+Environment=DLH_PORT=3847
+Environment=DLH_ROOT=${ROOT}
+Environment=DLH_AGENT_BIN=${agent_bin}
+
+[Install]
+WantedBy=default.target
+UNIT
+
+  log "Bridge unit → ${unit_path}"
+  log "Bridge Cursor CLI → ${agent_bin}"
+
+  if command -v loginctl >/dev/null 2>&1; then
+    loginctl enable-linger "$(whoami)" 2>&1 | tee -a "${LOG_DIR}/linger.log" || true
+  fi
+
+  systemctl --user daemon-reload
+  systemctl --user reset-failed daddyslittlehelper 2>/dev/null || true
+  systemctl --user enable daddyslittlehelper
+  systemctl --user restart daddyslittlehelper 2>&1 | tee -a "${LOG_DIR}/bridge-start.log"
+}
+
+free_bridge_port() {
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k 3847/tcp 2>/dev/null || true
+  fi
+}
+
+preflight_bridge_syntax() {
+  log "Checking bridge/server.js syntax…"
+  if ! node --check "${ROOT}/bridge/server.js" 2>"${LOG_DIR}/bridge-syntax.log"; then
+    cat "${LOG_DIR}/bridge-syntax.log" >&2 || true
+    die "bridge/server.js failed syntax check (see ${LOG_DIR}/bridge-syntax.log)"
+  fi
+}
+
+ensure_bridge_running() {
+  local attempt wait_i
+
+  log "Installing/restarting bridge (systemd user service)…"
+  install_bridge_service
+
+  for attempt in 1 2 3; do
+    for wait_i in $(seq 1 12); do
+      if bridge_health_ok; then
+        log "Bridge OK — http://127.0.0.1:3847"
+        return 0
+      fi
+      sleep 1
+    done
+    warn "Bridge not responding (attempt ${attempt}/3) — retrying…"
+    free_bridge_port
+    systemctl --user reset-failed daddyslittlehelper 2>/dev/null || true
+    systemctl --user restart daddyslittlehelper 2>&1 | tee -a "${LOG_DIR}/bridge-restart.log" || true
+  done
+
+  {
+    echo "=== systemctl status ==="
+    systemctl --user status daddyslittlehelper --no-pager -l || true
+    echo "=== journal ==="
+    journalctl --user -u daddyslittlehelper -n 40 --no-pager || true
+  } >>"${LOG_DIR}/bridge-journal.log" 2>&1
+
+  die "Bridge failed to start. Logs: ${LOG_DIR}/bridge-journal.log — re-run ./install.sh from ${ROOT}"
 }
 
 run_core_setup() {
   export DLH_HOME DLH_ROOT="${ROOT}"
+  preflight_bridge_syntax
   log "Sync extension → ${DLH_HOME}/extension"
   node "${ROOT}/scripts/install-extension.js"
   enable_mcp
-  log "Bridge service (systemd user)…"
-  node "${ROOT}/scripts/setup-service.js"
-  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
+  ensure_bridge_running
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 }
 
 print_summary() {
@@ -283,9 +410,9 @@ print_summary() {
     log "  5. npm run doctor"
   fi
   log ""
-  log "Bridge: http://127.0.0.1:3847 (systemd: daddyslittlehelper)"
-  log "Fallback: vivaldi-dlh"
-  log "Re-run ./install.sh anytime to update again."
+  log "Bridge: http://127.0.0.1:3847 (running — started by this install)"
+  log "If the side panel says offline: re-run ./install.sh then Restart Vivaldi."
+  log "Re-run ./install.sh anytime to install, update, or repair."
   echo ""
   echo "================================================================"
   echo "  FINISHED — you can close this terminal window."
@@ -301,6 +428,14 @@ main() {
   chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 
   parse_args "$@"
+  if [ "${BRIDGE_ONLY}" = 1 ]; then
+    export DLH_ROOT="${ROOT}"
+    require_node
+    ensure_bridge_running
+    log "Bridge-only repair complete."
+    exit 0
+  fi
+
   detect_mode
 
   local version

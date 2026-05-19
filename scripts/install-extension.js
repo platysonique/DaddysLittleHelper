@@ -50,6 +50,11 @@ async function exists(path) {
 }
 
 async function syncExtensionTree() {
+  const build = await run(process.execPath, [join(projectRoot, "scripts", "build-content.js")]);
+  if (!build.ok) {
+    throw new Error(`Could not build content script: ${build.stderr || build.stdout}`);
+  }
+  if (build.stdout.trim()) console.log(build.stdout.trim());
   await mkdir(extDest, { recursive: true });
   await cp(extSrc, extDest, { recursive: true, force: true });
 }

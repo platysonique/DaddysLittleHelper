@@ -60,7 +60,7 @@ function sanitizeForDisplay(text) {
 function friendlyFetchError(error) {
   const msg = error?.message || String(error || "");
   if (error?.name === "TypeError" && /fetch/i.test(msg)) {
-    return "Bridge not reachable at http://127.0.0.1:3847. Run ./install.sh in the project folder, then click Refresh.";
+    return "Bridge not running. In the project folder run: ./install.sh — then Restart Vivaldi and click Refresh.";
   }
   return msg || "Unknown error";
 }
@@ -280,14 +280,20 @@ function setAutomationUi(enabled) {
   document.body.dataset.automation = on ? "on" : "off";
 }
 
-async function saveAutomationEnabled(enabled) {
-  const on = Boolean(enabled);
-  setAutomationUi(on);
+async function syncAutomationToBridge(enabled) {
   await jsonFetch("/settings", {
     method: "POST",
-    body: JSON.stringify({ browserAutomationEnabled: on })
+    body: JSON.stringify({ browserAutomationEnabled: Boolean(enabled) })
   });
+  await chrome.storage.local.set({ dlhAutomationPendingSync: false });
+}
+
+async function saveAutomationEnabled(enabled, { syncBridge = true } = {}) {
+  const on = Boolean(enabled);
+  setAutomationUi(on);
   await chrome.storage.local.set({ dlhAutomationEnabled: on });
+  if (!syncBridge) return;
+  await syncAutomationToBridge(on);
 }
 
 async function loadBridge() {
@@ -304,9 +310,27 @@ async function loadBridge() {
     jsonFetch("/settings").catch(() => ({ browserAutomationEnabled: false }))
   ]);
 
-  const automationOn = Boolean(settings.browserAutomationEnabled);
+  const prefs = await chrome.storage.local.get([
+    "dlhAutomationEnabled",
+    "dlhAutomationPendingSync",
+    "dlhModel",
+    "dlhWorkspace",
+    "dlhPermissionMode",
+    "dlhTheme",
+    "dlhCursorThread"
+  ]);
+  const automationOn = prefs.dlhAutomationPendingSync
+    ? Boolean(prefs.dlhAutomationEnabled)
+    : Boolean(settings.browserAutomationEnabled);
   setAutomationUi(automationOn);
   await chrome.storage.local.set({ dlhAutomationEnabled: automationOn });
+  if (prefs.dlhAutomationPendingSync) {
+    try {
+      await syncAutomationToBridge(automationOn);
+    } catch {
+      // keep pending until bridge accepts settings
+    }
+  }
 
   let automation;
   if (!automationOn) {
@@ -335,16 +359,15 @@ async function loadBridge() {
   elements.model.replaceChildren(...models.map((model) => option(model.id, model.label || model.id)));
   elements.workspace.replaceChildren(...workspaces.map((workspace) => option(workspace.id, `${workspace.name} — ${workspace.path}`)));
 
-  const stored = await chrome.storage.local.get(["dlhModel", "dlhWorkspace", "dlhPermissionMode", "dlhTheme", "dlhCursorThread"]);
-  if (stored.dlhModel) elements.model.value = stored.dlhModel;
-  if (stored.dlhWorkspace) elements.workspace.value = stored.dlhWorkspace;
-  if (stored.dlhPermissionMode) elements.permissionMode.value = stored.dlhPermissionMode;
-  setTheme(stored.dlhTheme || "auto");
+  if (prefs.dlhModel) elements.model.value = prefs.dlhModel;
+  if (prefs.dlhWorkspace) elements.workspace.value = prefs.dlhWorkspace;
+  if (prefs.dlhPermissionMode) elements.permissionMode.value = prefs.dlhPermissionMode;
+  setTheme(prefs.dlhTheme || "auto");
 
   await Promise.all([
     loadTabs().catch(() => {}),
     loadQuickPrompts().catch(() => {}),
-    loadCursorThreads(stored.dlhCursorThread).catch(() => {})
+    loadCursorThreads(prefs.dlhCursorThread).catch(() => {})
   ]);
   await refreshContext().catch(() => {});
 }
@@ -606,13 +629,17 @@ async function cancelChat() {
 }
 
 elements.automationEnabled.addEventListener("change", async () => {
+  const on = elements.automationEnabled.checked;
+  setAutomationUi(on);
+  await chrome.storage.local.set({ dlhAutomationEnabled: on, dlhAutomationPendingSync: true });
   try {
-    await saveAutomationEnabled(elements.automationEnabled.checked);
+    await syncAutomationToBridge(on);
+    elements.status.textContent = on
+      ? "Automation ON — agents can use browser tools when Vivaldi is connected."
+      : "Automation OFF — chat only.";
     await loadBridge();
   } catch (error) {
-    elements.status.textContent = `Could not save automation setting: ${error.message}`;
-    elements.automationEnabled.checked = !elements.automationEnabled.checked;
-    setAutomationUi(elements.automationEnabled.checked);
+    elements.status.textContent = `Bridge offline — automation ${on ? "ON" : "OFF"} saved. Run ./install.sh in the project folder, restart Vivaldi, Refresh.`;
   }
 });
 
@@ -654,3 +681,5 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 loadBridge().catch((error) => setBridgeOfflineStatus(error));
+
+

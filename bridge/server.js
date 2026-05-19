@@ -151,7 +151,6 @@ async function handleChat(req, res) {
     emit("cursor-thread", { cursorChatId });
   }
 
-  const settings = await loadSettings();
   const userMessage = body.message || "";
   const acpPrompt = buildPrompt({
     userText: userMessage,
@@ -215,6 +214,13 @@ async function handleChat(req, res) {
       emit("agent-result", result || {});
     }
   } catch (acpError) {
+    if (browserAutomationEnabled) {
+      const detail = acpError?.message || String(acpError);
+      emit("error", {
+        message: `Browser automation requires Cursor ACP with dlh-browser MCP. ACP failed: ${detail}`
+      });
+      return;
+    }
     emit("fallback", { reason: acpError.message });
     try {
       const result = await runPrint("acp-unavailable");
@@ -377,11 +383,20 @@ async function route(req, res) {
   }
 }
 
-await mkdir(DATA_DIR, { recursive: true });
-await mkdir(THREAD_DIR, { recursive: true });
-await loadWorkspaces();
+try {
+  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(THREAD_DIR, { recursive: true });
+  await loadWorkspaces();
 
-const server = http.createServer(route);
-server.listen(DEFAULT_PORT, DEFAULT_HOST, () => {
-  console.log(`DaddysLittleHelper bridge listening on http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
-});
+  const server = http.createServer(route);
+  server.on("error", (error) => {
+    console.error(`[dlh-bridge] listen failed on ${DEFAULT_HOST}:${DEFAULT_PORT}:`, error.message);
+    process.exit(1);
+  });
+  server.listen(DEFAULT_PORT, DEFAULT_HOST, () => {
+    console.log(`DaddysLittleHelper bridge listening on http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
+  });
+} catch (error) {
+  console.error("[dlh-bridge] startup failed:", error?.message || error);
+  process.exit(1);
+}
