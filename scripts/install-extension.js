@@ -2,8 +2,7 @@
 /**
  * Idempotent Vivaldi/Chromium extension registration (Linux).
  * Syncs extension to ~/.local/share/daddyslittlehelper/extension,
- * packs a CRX when a Chromium-based browser is available,
- * registers via External Extensions (auto-install on browser start).
+ * registers the unpacked extension path via External Extensions.
  */
 import { spawn } from "node:child_process";
 import { copyFile, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -130,15 +129,8 @@ function vivaldiConfigRoots() {
   return [...roots];
 }
 
-async function writeExternalExtension(extensionId, version, packed) {
-  const payload = packed
-    ? {
-        external_crx: crxPath,
-        external_version: String(version)
-      }
-    : {
-        path: extDest
-      };
+async function writeExternalExtension(extensionId) {
+  const payload = { path: extDest };
 
   const body = `${JSON.stringify(payload, null, 2)}\n`;
   let wrote = 0;
@@ -205,22 +197,18 @@ export async function installExtension() {
   const { manifest, extensionId } = await injectManifestKey();
   const version = manifest.version || "0.0.0";
 
-  const packed = await packCrx(version);
-  if (!packed.ok) {
-    console.warn(
-      "Could not pack CRX (install chromium or google-chrome for silent install). Falling back to path-based External Extensions."
-    );
-  }
+  const shouldPackCrx = process.env.DLH_PACK_CRX === "1";
+  const packed = shouldPackCrx ? await packCrx(version) : { ok: false };
 
-  const registeredDirs = await writeExternalExtension(extensionId, version, packed.ok);
+  const registeredDirs = await writeExternalExtension(extensionId);
   if (registeredDirs === 0) {
     console.warn("No Vivaldi config directories found yet. Extension files are ready; open Vivaldi once and rerun ./install.sh");
   }
 
   await writeWrapperScript(extensionId);
-  await writeInstallMeta(extensionId, packed.ok, registeredDirs);
+  await writeInstallMeta(extensionId, false, registeredDirs);
 
-  return { extensionId, extDest, crxPath, packed: packed.ok, registeredDirs };
+  return { extensionId, extDest, crxPath: shouldPackCrx && packed.ok ? crxPath : null, packed: false, registeredDirs };
 }
 
 const isMain =

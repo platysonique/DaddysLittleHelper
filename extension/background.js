@@ -2,7 +2,6 @@ import { executeBrowserCommand } from "./browser-runner.js";
 
 const BRIDGE_URL = "http://127.0.0.1:3847";
 const TAB_WORKSPACES_KEY = "dlhTabWorkspaces";
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -30,10 +29,6 @@ async function browserWorkerLoop() {
         continue;
       }
       try {
-        if (!(await isBrowserAutomationEnabled())) {
-          await postJson("/browser/result", { id: job.id, error: AUTOMATION_OFF_MSG });
-          continue;
-        }
         const result = await executeBrowserCommand(job);
         await postJson("/browser/result", { id: job.id, result });
       } catch (error) {
