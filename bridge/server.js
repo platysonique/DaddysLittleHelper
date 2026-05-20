@@ -101,6 +101,14 @@ function eventText(event) {
 }
 
 function toolActivityFromEvent(event) {
+  const update = event?.params?.update;
+  if (update?.sessionUpdate === "tool_call" || update?.sessionUpdate === "tool_call_update") {
+    return {
+      tool: update.title || update.toolName || update.name || update.toolCallId || "tool",
+      status: update.status || update.sessionUpdate,
+      kind: update.kind || null
+    };
+  }
   const name =
     event?.tool?.name ||
     event?.name ||

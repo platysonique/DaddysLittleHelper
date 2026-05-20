@@ -39,6 +39,7 @@ let activeChatSessionId = null;
 let activityPollTimer = null;
 let activitySince = 0;
 let currentCursorThreads = [];
+let chatInFlight = false;
 
 function option(value, label) {
   const item = document.createElement("option");
@@ -220,6 +221,7 @@ async function pollBrowserActivity() {
 
 function startActivityPoll() {
   clearActivity();
+  pushActivity("Cursor: starting");
   activityPollTimer = setInterval(pollBrowserActivity, 700);
 }
 
@@ -229,6 +231,7 @@ function stopActivityPoll() {
 }
 
 function setChatBusy(busy) {
+  chatInFlight = Boolean(busy);
   elements.send.disabled = busy;
   elements.prompt.disabled = busy;
   elements.cancel.classList.toggle("hidden", !busy);
@@ -686,7 +689,8 @@ async function sendPrompt(event) {
             pushActivity("Using Cursor thread (resume)");
           }
         } else if (name === "tool-activity") {
-          pushActivity(`tool: ${data.tool}`);
+          const status = data.status ? ` (${data.status})` : "";
+          pushActivity(`tool: ${data.tool}${status}`);
         } else if (name === "fallback") {
           if (!/cursor thread|resume/i.test(data.reason || "")) {
             addMessage("event", `Fallback: ${data.reason}`);
@@ -695,7 +699,7 @@ async function sendPrompt(event) {
           currentCursorChatId = data.cursorChatId;
           elements.thread.value = data.cursorChatId;
           chrome.storage.local.set({ dlhCursorThread: data.cursorChatId });
-          if (data.created) loadCursorThreads(data.cursorChatId).catch(() => {});
+          if (data.created && !chatInFlight) loadCursorThreads(data.cursorChatId).catch(() => {});
         } else if (name === "error") {
           addMessage("event", data.message || "Error");
         } else if (name === "done") {
