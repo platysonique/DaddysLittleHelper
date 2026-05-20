@@ -335,6 +335,12 @@ async function loadBridge() {
   let automation;
   if (!automationOn) {
     automation = "automation OFF (security)";
+  } else if (browser.status === "wrong_extension" || browser.status === "wrong_version") {
+    const actual = browser.identity?.extensionId || "unknown";
+    const expected = browser.expected?.extensionId || "unknown";
+    automation = `automation blocked · wrong extension ${actual} (expected ${expected})`;
+  } else if (browser.status === "unknown_extension") {
+    automation = "automation blocked · extension identity missing";
   } else if (browser.automationActive) {
     automation = "automation ON · linked";
   } else if (browser.connected) {
@@ -681,5 +687,4 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 loadBridge().catch((error) => setBridgeOfflineStatus(error));
-
 

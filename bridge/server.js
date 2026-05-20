@@ -43,6 +43,13 @@ function sendError(res, status, error) {
   sendJson(res, status, { error: error?.message || String(error) });
 }
 
+function normalizeBrowserUrl(input) {
+  const raw = String(input || "").trim();
+  if (!raw) throw new Error("Missing URL.");
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -339,12 +346,49 @@ async function route(req, res) {
       return;
     }
     if (req.method === "GET" && url.pathname === "/browser/status") {
-      sendJson(res, 200, extensionStatus());
+      sendJson(res, 200, await extensionStatus());
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/self-test") {
+      const status = await extensionStatus();
+      if (!status.automationActive) {
+        sendJson(res, 409, { ok: false, status, error: "Browser automation is not ready." });
+        return;
+      }
+      const result = await runBrowserCommand("tabs", {}, { timeoutMs: 20_000 });
+      sendJson(res, 200, { ok: true, status: await extensionStatus(), result });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/navigate-test") {
+      const body = await readBody(req);
+      const targetUrl = normalizeBrowserUrl(body.url || "https://tigertech.net");
+      const params = { ...(body.params || {}), url: targetUrl, timeoutMs: Number(body.timeoutMs || 60_000) };
+      if (body.tabId !== undefined) params.tabId = body.tabId;
+      const navigate = await runBrowserCommand(
+        "navigate",
+        params,
+        { timeoutMs: Number(body.timeoutMs || 75_000) }
+      );
+      let snapshot = null;
+      try {
+        snapshot = await runBrowserCommand(
+          "snapshot",
+          { tabId: navigate.tabId, allFrames: false },
+          { timeoutMs: 60_000 }
+        );
+      } catch (error) {
+        snapshot = { error: error?.message || String(error) };
+      }
+      sendJson(res, 200, { ok: true, status: await extensionStatus(), navigate, snapshot });
       return;
     }
     if (req.method === "GET" && url.pathname === "/browser/wait") {
       const timeoutMs = Math.min(Number(url.searchParams.get("timeoutMs") || 25_000), 60_000);
-      const job = await waitForJob(timeoutMs);
+      const job = await waitForJob(timeoutMs, {
+        extensionId: url.searchParams.get("extensionId"),
+        version: url.searchParams.get("version"),
+        runtimeSessionId: url.searchParams.get("runtimeSessionId")
+      });
       if (!job) {
         sendJson(res, 200, { idle: true });
         return;
@@ -354,27 +398,27 @@ async function route(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/browser/result") {
       const body = await readBody(req);
-      const ok = completeBrowserCommand(body.id, body.result, body.error);
+      const ok = completeBrowserCommand(body.id, body.result, body.error, body.identity || {});
       if (!ok) sendError(res, 404, "Unknown browser command id.");
       else sendJson(res, 200, { ok: true });
       return;
     }
     if (req.method === "POST" && url.pathname === "/browser/exec") {
       const body = await readBody(req);
-      markExtensionAlive();
       try {
         const result = await runBrowserCommand(body.command, body.params || {}, {
           timeoutMs: Number(body.timeoutMs || 45_000)
         });
         sendJson(res, 200, { ok: true, result });
       } catch (error) {
-        sendError(res, 503, error);
+        sendJson(res, 503, { error: error?.message || String(error), status: await extensionStatus() });
       }
       return;
     }
     if (req.method === "POST" && url.pathname === "/browser/ping") {
-      markExtensionAlive();
-      sendJson(res, 200, { ok: true });
+      const body = await readBody(req);
+      markExtensionAlive(body.identity || body);
+      sendJson(res, 200, { ok: true, status: await extensionStatus() });
       return;
     }
     sendError(res, 404, "Not found.");

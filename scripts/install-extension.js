@@ -13,8 +13,10 @@ import { extensionIdFromManifestKey } from "./lib/extension-id.js";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dlhHome = process.env.DLH_HOME || join(homedir(), ".local", "share", "daddyslittlehelper");
+const flatpakDlhHome = join(homedir(), ".var", "app", "com.vivaldi.Vivaldi", "data", "daddyslittlehelper");
 const extSrc = join(projectRoot, "extension");
 const extDest = join(dlhHome, "extension");
+const flatpakExtDest = join(flatpakDlhHome, "extension");
 const pemPath = join(dlhHome, "packaging", "extension.pem");
 const crxPath = join(dlhHome, "daddyslittlehelper.crx");
 
@@ -92,6 +94,12 @@ async function injectManifestKey() {
   return { manifest, extensionId: extensionIdFromManifestKey(manifest.key) };
 }
 
+async function syncFlatpakExtensionTree() {
+  await mkdir(dirname(flatpakExtDest), { recursive: true });
+  await rm(flatpakExtDest, { recursive: true, force: true });
+  await cp(extDest, flatpakExtDest, { recursive: true, force: true });
+}
+
 async function packCrx(version) {
   for (const browser of PACK_BROWSERS) {
     const which = await run("which", [browser]);
@@ -129,13 +137,16 @@ function vivaldiConfigRoots() {
   return [...roots];
 }
 
-async function writeExternalExtension(extensionId) {
-  const payload = { path: extDest };
+function extensionPathForRoot(root) {
+  return root.includes(join(".var", "app", "com.vivaldi.Vivaldi", "config")) ? flatpakExtDest : extDest;
+}
 
-  const body = `${JSON.stringify(payload, null, 2)}\n`;
+async function writeExternalExtension(extensionId) {
   let wrote = 0;
 
   for (const root of vivaldiConfigRoots()) {
+    const payload = { path: extensionPathForRoot(root) };
+    const body = `${JSON.stringify(payload, null, 2)}\n`;
     const dir = join(root, "External Extensions");
     await mkdir(dir, { recursive: true });
     const jsonPath = join(dir, `${extensionId}.json`);
@@ -154,8 +165,9 @@ async function writeWrapperScript(extensionId) {
     "#!/usr/bin/env bash",
     "set -euo pipefail",
     'EXT_DIR="${DLH_HOME:-$HOME/.local/share/daddyslittlehelper}/extension"',
+    'FLATPAK_EXT_DIR="$HOME/.var/app/com.vivaldi.Vivaldi/data/daddyslittlehelper/extension"',
     'if command -v flatpak >/dev/null 2>&1 && flatpak info com.vivaldi.Vivaldi >/dev/null 2>&1; then',
-    '  exec flatpak run com.vivaldi.Vivaldi --load-extension="$EXT_DIR" "$@"',
+    '  exec flatpak run com.vivaldi.Vivaldi --load-extension="$FLATPAK_EXT_DIR" "$@"',
     "fi",
     'if command -v vivaldi-stable >/dev/null 2>&1; then',
     '  exec vivaldi-stable --load-extension="$EXT_DIR" "$@"',
@@ -173,12 +185,15 @@ async function writeWrapperScript(extensionId) {
   return wrapper;
 }
 
-async function writeInstallMeta(extensionId, packed, registeredDirs) {
+async function writeInstallMeta({ extensionId, manifest, packed, registeredDirs }) {
   const metaDir = join(homedir(), ".config", "daddyslittlehelper");
   await mkdir(metaDir, { recursive: true });
   const meta = {
     extensionId,
+    version: manifest.version || null,
+    name: manifest.name || "DaddysLittleHelper",
     extensionPath: extDest,
+    flatpakExtensionPath: flatpakExtDest,
     crxPath: packed ? crxPath : null,
     registeredDirs,
     packed: Boolean(packed),
@@ -195,6 +210,7 @@ export async function installExtension() {
   await syncExtensionTree();
   await ensurePem();
   const { manifest, extensionId } = await injectManifestKey();
+  await syncFlatpakExtensionTree();
   const version = manifest.version || "0.0.0";
 
   const shouldPackCrx = process.env.DLH_PACK_CRX === "1";
@@ -206,7 +222,7 @@ export async function installExtension() {
   }
 
   await writeWrapperScript(extensionId);
-  await writeInstallMeta(extensionId, false, registeredDirs);
+  await writeInstallMeta({ extensionId, manifest, packed: false, registeredDirs });
 
   return { extensionId, extDest, crxPath: shouldPackCrx && packed.ok ? crxPath : null, packed: false, registeredDirs };
 }

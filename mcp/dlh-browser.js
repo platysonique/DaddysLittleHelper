@@ -165,14 +165,20 @@ const COMMAND_MAP = {
 };
 
 async function bridgeExec(command, params) {
-  const response = await fetch(`${BRIDGE_URL}/browser/exec`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ command, params })
-  });
+  let response;
+  try {
+    response = await fetch(`${BRIDGE_URL}/browser/exec`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command, params })
+    });
+  } catch (error) {
+    throw new Error(`DLH bridge is unreachable at ${BRIDGE_URL}: ${error?.message || String(error)}`);
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body?.error || `Bridge browser exec failed (${response.status}).`);
+    const status = body?.status ? ` ${JSON.stringify(body.status)}` : "";
+    throw new Error(`${body?.error || `Bridge browser exec failed (${response.status}).`}${status}`);
   }
   return body.result ?? body;
 }
@@ -191,14 +197,15 @@ const transport = createStdioTransport();
 
 while (true) {
   const message = await transport.read();
-  if (!message?.method && !message?.id) continue;
+  const hasId = Object.hasOwn(message || {}, "id");
+  if (!message?.method && !hasId) continue;
 
   if (message.method === "initialize") {
     transport.write({
       jsonrpc: "2.0",
       id: message.id,
       result: {
-        protocolVersion: "2024-11-05",
+        protocolVersion: message.params?.protocolVersion || "2024-11-05",
         capabilities: { tools: {} },
         serverInfo: { name: "dlh-browser", version: "0.3.1" }
       }
@@ -208,8 +215,23 @@ while (true) {
 
   if (message.method === "notifications/initialized") continue;
 
+  if (message.method === "ping") {
+    transport.write({ jsonrpc: "2.0", id: message.id, result: {} });
+    continue;
+  }
+
   if (message.method === "tools/list") {
     transport.write({ jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } });
+    continue;
+  }
+
+  if (message.method === "resources/list") {
+    transport.write({ jsonrpc: "2.0", id: message.id, result: { resources: [] } });
+    continue;
+  }
+
+  if (message.method === "prompts/list") {
+    transport.write({ jsonrpc: "2.0", id: message.id, result: { prompts: [] } });
     continue;
   }
 
@@ -231,7 +253,7 @@ while (true) {
     continue;
   }
 
-  if (message.id) {
+  if (hasId) {
     transport.write({
       jsonrpc: "2.0",
       id: message.id,

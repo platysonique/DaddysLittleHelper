@@ -29,6 +29,25 @@ function get(url) {
   });
 }
 
+function post(url, body = {}) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify(body);
+    const req = http.request(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, statusCode: res.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.on("error", (error) => resolve({ ok: false, statusCode: 0, body: error.message }));
+    req.end(payload);
+  });
+}
+
 function line(ok, label, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"} ${label}${detail ? ` — ${detail}` : ""}`);
   return ok ? 0 : 1;
@@ -45,8 +64,8 @@ failures += line(agentVersion.ok, "Cursor CLI", agentVersion.stdout.trim() || ag
 const agentStatus = await command("agent", ["status"]);
 failures += line(agentStatus.ok && /logged in/i.test(agentStatus.stdout), "Cursor CLI logged in", agentStatus.stdout.trim());
 
-const mcpList = await command("agent", ["mcp", "list"], { cwd: projectRoot });
-failures += line(/dlh-browser:\s+ready/i.test(`${mcpList.stdout}\n${mcpList.stderr}`), "dlh-browser MCP ready");
+const mcpSmoke = await command(process.execPath, [join(projectRoot, "scripts", "mcp-smoke.js"), "--list-only"], { cwd: projectRoot });
+failures += line(mcpSmoke.ok, "dlh-browser MCP adapter", mcpSmoke.stdout.trim() || mcpSmoke.stderr.trim());
 
 let mcpConfig;
 try {
@@ -76,14 +95,40 @@ try {
   browserStatus = {};
 }
 const automationOn = browserStatus.browserAutomationEnabled === true;
+const identityMatched = browserStatus.status === "matched";
 failures += line(
-  browser.ok && extensionConnected && automationOn,
-  "Extension linked with automation ON",
+  browser.ok && extensionConnected && automationOn && identityMatched,
+  "Expected extension linked with automation ON",
   browser.body?.trim?.().slice(0, 120)
 );
 if (browser.ok && extensionConnected && !automationOn) {
   console.log("WARN Browser automation toggle is OFF — enable it in the side panel for agent control.");
 }
+
+const selfTest = await post("http://127.0.0.1:3847/browser/self-test");
+failures += line(selfTest.ok, "Direct browser self-test", selfTest.body?.trim?.().slice(0, 160));
+
+const navigateUrl = process.env.DLH_DOCTOR_NAVIGATE_URL || "https://tigertech.net";
+const navigateTest = await post("http://127.0.0.1:3847/browser/navigate-test", { url: navigateUrl, timeoutMs: 60_000 });
+let navigateOk = false;
+try {
+  const parsed = JSON.parse(navigateTest.body);
+  navigateOk = navigateTest.ok && parsed.navigate?.finalUrl?.includes("tigertech");
+} catch {
+  navigateOk = false;
+}
+failures += line(navigateOk, "Direct browser navigate-test", navigateTest.body?.trim?.().slice(0, 200));
+
+const mcpNavigate = await command(
+  process.execPath,
+  [join(projectRoot, "scripts", "mcp-smoke.js"), `--url=${navigateUrl}`],
+  { cwd: projectRoot }
+);
+failures += line(
+  mcpNavigate.ok && /"finalUrl":\s*"https:\/\/tigertech\.net\//.test(mcpNavigate.stdout),
+  "MCP dlh_browser_navigate",
+  (mcpNavigate.stdout.trim() || mcpNavigate.stderr.trim()).slice(0, 200)
+);
 
 const models = await get("http://127.0.0.1:3847/models");
 let modelCount = 0;

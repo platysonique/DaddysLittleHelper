@@ -65,8 +65,8 @@ function labelOfElement(el, doc = document) {
     el.getAttribute("name"),
     el.getAttribute("value") && el.tagName === "INPUT" ? el.getAttribute("value") : null,
     labelFromForAttribute(el, doc),
-    el.labels?.[0]?.innerText,
-    el.innerText
+    el.labels?.[0]?.innerText || el.labels?.[0]?.textContent,
+    el.innerText || el.textContent
   ];
   for (const piece of pieces) {
     const text = String(piece || "").replace(/\s+/g, " ").trim();
@@ -79,7 +79,10 @@ function labelFromAriaLabelledBy(el, doc) {
   const ids = (el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean);
   if (!ids.length) return "";
   return ids
-    .map((id) => doc.getElementById(id)?.innerText || "")
+    .map((id) => {
+      const node = doc.getElementById(id);
+      return node?.innerText || node?.textContent || "";
+    })
     .join(" ")
     .trim();
 }

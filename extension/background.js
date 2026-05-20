@@ -2,6 +2,20 @@ import { executeBrowserCommand } from "./browser-runner.js";
 
 const BRIDGE_URL = "http://127.0.0.1:3847";
 const TAB_WORKSPACES_KEY = "dlhTabWorkspaces";
+const WORKER_ALARM = "dlh-browser-worker";
+const RUNTIME_SESSION_ID = crypto.randomUUID();
+let workerLoopRunning = false;
+
+function extensionIdentity() {
+  const manifest = chrome.runtime.getManifest();
+  return {
+    extensionId: chrome.runtime.id,
+    version: manifest.version,
+    name: manifest.name,
+    runtimeSessionId: RUNTIME_SESSION_ID
+  };
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -20,19 +34,28 @@ async function postJson(path, body) {
 }
 
 async function browserWorkerLoop() {
+  if (workerLoopRunning) return;
+  workerLoopRunning = true;
   while (true) {
     try {
-      await fetch(`${BRIDGE_URL}/browser/ping`, { method: "POST" }).catch(() => {});
-      const response = await fetch(`${BRIDGE_URL}/browser/wait?timeoutMs=25000`);
+      const identity = extensionIdentity();
+      await postJson("/browser/ping", { identity }).catch(() => {});
+      const waitParams = new URLSearchParams({
+        timeoutMs: "25000",
+        extensionId: identity.extensionId,
+        version: identity.version,
+        runtimeSessionId: identity.runtimeSessionId
+      });
+      const response = await fetch(`${BRIDGE_URL}/browser/wait?${waitParams}`);
       const job = await response.json();
       if (!job?.id || !job?.command) {
         continue;
       }
       try {
         const result = await executeBrowserCommand(job);
-        await postJson("/browser/result", { id: job.id, result });
+        await postJson("/browser/result", { id: job.id, identity, result });
       } catch (error) {
-        await postJson("/browser/result", { id: job.id, error: error?.message || String(error) });
+        await postJson("/browser/result", { id: job.id, identity, error: error?.message || String(error) });
       }
     } catch {
       await sleep(2000);
@@ -40,10 +63,32 @@ async function browserWorkerLoop() {
   }
 }
 
-browserWorkerLoop();
+function startBrowserWorkerLoop() {
+  browserWorkerLoop().catch(() => {
+    workerLoopRunning = false;
+  });
+}
+
+function scheduleWorkerAlarm() {
+  chrome.alarms?.create?.(WORKER_ALARM, { periodInMinutes: 0.5 });
+}
+
+startBrowserWorkerLoop();
+scheduleWorkerAlarm();
 
 chrome.runtime.onInstalled.addListener(() => {
+  scheduleWorkerAlarm();
+  startBrowserWorkerLoop();
   chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+});
+
+chrome.runtime.onStartup?.addListener?.(() => {
+  scheduleWorkerAlarm();
+  startBrowserWorkerLoop();
+});
+
+chrome.alarms?.onAlarm?.addListener?.((alarm) => {
+  if (alarm.name === WORKER_ALARM) startBrowserWorkerLoop();
 });
 
 chrome.action.onClicked.addListener(async (tab) => {

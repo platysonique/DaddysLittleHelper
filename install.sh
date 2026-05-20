@@ -332,10 +332,12 @@ free_bridge_port() {
 }
 
 preflight_bridge_syntax() {
-  log "Checking bridge/server.js syntax…"
-  if ! node --check "${ROOT}/bridge/server.js" 2>"${LOG_DIR}/bridge-syntax.log"; then
+  log "Checking bridge syntax…"
+  if ! node --check "${ROOT}/bridge/server.js" >"${LOG_DIR}/bridge-syntax.log" 2>&1 ||
+     ! node --check "${ROOT}/bridge/browser-hub.js" >>"${LOG_DIR}/bridge-syntax.log" 2>&1 ||
+     ! node --check "${ROOT}/extension/background.js" >>"${LOG_DIR}/bridge-syntax.log" 2>&1; then
     cat "${LOG_DIR}/bridge-syntax.log" >&2 || true
-    die "bridge/server.js failed syntax check (see ${LOG_DIR}/bridge-syntax.log)"
+    die "DLH runtime syntax check failed (see ${LOG_DIR}/bridge-syntax.log)"
   fi
 }
 
@@ -376,7 +378,7 @@ run_core_setup() {
   node "${ROOT}/scripts/install-extension.js"
   enable_mcp
   ensure_bridge_running
-  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 }
 
 print_summary() {
@@ -395,7 +397,7 @@ print_summary() {
     log "  Extension: ${ext_version}"
     log ""
     log "Recommended:"
-    log "  • Restart Vivaldi (picks up extension + CRX changes)"
+    log "  • Restart Vivaldi (picks up registered unpacked extension changes)"
     log "  • Bridge was restarted automatically"
     log "  • npm run doctor"
   else
@@ -411,6 +413,9 @@ print_summary() {
   fi
   log ""
   log "Bridge: http://127.0.0.1:3847 (running — started by this install)"
+  if [ -f "${CONFIG_DIR}/extension.json" ]; then
+    log "Expected extension: $(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('${CONFIG_DIR}/extension.json','utf8'));process.stdout.write([m.extensionId,m.version].filter(Boolean).join(' @ '))" 2>/dev/null || echo unknown)"
+  fi
   log "If the side panel says offline: re-run ./install.sh then Restart Vivaldi."
   log "Re-run ./install.sh anytime to install, update, or repair."
   echo ""
@@ -425,7 +430,7 @@ print_summary() {
 
 main() {
   mkdir -p "${CONFIG_DIR}" "${LOG_DIR}" "${HOME}/.local/bin" "${HOME}/.cursor"
-  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 
   parse_args "$@"
   if [ "${BRIDGE_ONLY}" = 1 ]; then

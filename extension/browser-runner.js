@@ -186,6 +186,33 @@ export async function resolveTabId(params = {}) {
   return active.id;
 }
 
+function waitForTabLoad(tabId, expectedUrl, timeoutMs = 45_000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = async (reason) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      resolve({
+        status: tab?.status || "unknown",
+        finalUrl: tab?.url || expectedUrl,
+        title: tab?.title || null,
+        reason
+      });
+    };
+    const onUpdated = (updatedTabId, changeInfo, tab) => {
+      if (updatedTabId !== tabId) return;
+      if (changeInfo.status === "complete") {
+        done(tab?.url === expectedUrl ? "complete" : "complete_url_changed");
+      }
+    };
+    const timer = setTimeout(() => done("timeout"), timeoutMs);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+}
+
 export async function executeBrowserCommand({ command, params = {} }) {
   if (command === "tabs") {
     const tabs = await chrome.tabs.query({ currentWindow: true });
@@ -208,8 +235,10 @@ export async function executeBrowserCommand({ command, params = {} }) {
   if (command === "navigate") {
     const url = params.url;
     if (!url) throw new Error("navigate requires url.");
+    const loadPromise = waitForTabLoad(tabId, url, Number(params.timeoutMs || 45_000));
     await chrome.tabs.update(tabId, { url });
-    return { ok: true, tabId, url };
+    const load = await loadPromise;
+    return { ok: true, tabId, url, ...load };
   }
 
   if (command === "click_at") {
