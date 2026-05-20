@@ -62,6 +62,9 @@ export function eventTextFromStreamEvent(event) {
   if (event?.type === "assistant") {
     return event.message?.content?.map((block) => block.text || "").join("") || "";
   }
+  if (event?.type === "result" && typeof event.result === "string") {
+    return event.result;
+  }
   if (event?.type === "thinking" && typeof event.text === "string") {
     return event.text;
   }

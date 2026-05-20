@@ -546,6 +546,40 @@ function isPromptLeak(text) {
   return Boolean(text && sanitizeForDisplay(text) === "");
 }
 
+function textFromContentBlocks(blocks) {
+  if (!Array.isArray(blocks)) return "";
+  return blocks.map((block) => block?.text || "").join("");
+}
+
+function textFromAgentPayload(data) {
+  if (!data || typeof data !== "object") return "";
+  const update = data.params?.update;
+  if (update?.sessionUpdate === "agent_message_chunk" && update.content?.text) {
+    return update.content.text;
+  }
+  if (data.type === "assistant") {
+    return textFromContentBlocks(data.message?.content);
+  }
+  if (data.type === "result" && typeof data.result === "string") {
+    return data.result;
+  }
+  if (typeof data.text === "string") return data.text;
+  if (typeof data.result === "string") return data.result;
+  return "";
+}
+
+function textFromAgentResult(data) {
+  const direct = textFromAgentPayload(data);
+  if (direct) return direct;
+  if (Array.isArray(data?.events)) {
+    for (let i = data.events.length - 1; i >= 0; i -= 1) {
+      const text = textFromAgentPayload(data.events[i]);
+      if (text) return text;
+    }
+  }
+  return "";
+}
+
 function setAssistantMarkdown(assistantEl, text) {
   assistantMarkdown = text;
   const body = assistantEl.querySelector(".md") || assistantEl;
@@ -638,15 +672,15 @@ async function sendPrompt(event) {
           activeChatSessionId = data.chatSessionId;
         } else if (name === "agent-event") {
           if (data?.type === "assistant" && data?.message?.content) {
-            const full = data.message.content.map((block) => block.text || "").join("");
+            const full = textFromContentBlocks(data.message.content);
             if (full) replaceAssistantText(assistant, full);
           } else {
-            const text =
-              data?.params?.update?.content?.text ||
-              data?.text ||
-              "";
+            const text = textFromAgentPayload(data);
             if (text) appendAssistantText(assistant, text);
           }
+        } else if (name === "agent-result") {
+          const text = textFromAgentResult(data);
+          if (text && !assistantMarkdown.trim()) replaceAssistantText(assistant, text);
         } else if (name === "status") {
           if (data?.phase === "print" && data?.detail === "cursor-thread-resume") {
             pushActivity("Using Cursor thread (resume)");
@@ -665,6 +699,9 @@ async function sendPrompt(event) {
         } else if (name === "error") {
           addMessage("event", data.message || "Error");
         } else if (name === "done") {
+          if (!assistantMarkdown.trim() && !data?.cancelled) {
+            replaceAssistantText(assistant, "_Cursor finished, but no assistant text was returned._");
+          }
           if (data.cancelled) addMessage("event", "Cancelled.");
         }
       });
