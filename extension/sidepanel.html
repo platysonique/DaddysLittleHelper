@@ -18,7 +18,7 @@
       <button id="refresh">Refresh</button>
     </header>
 
-    <section class="controls">
+    <section class="top-status">
       <div class="card security-card">
         <div class="security-row">
           <div>
@@ -32,8 +32,28 @@
           </label>
         </div>
       </div>
+    </section>
 
-      <div class="card grid-two">
+    <section id="messages" class="messages"></section>
+
+    <section class="card quick-prompts">
+      <div class="section-title">Quick prompts</div>
+      <div id="quick-prompts" class="quick-prompt-row"></div>
+    </section>
+
+    <form id="chat-form">
+      <textarea id="prompt" rows="4" placeholder="Tell Cursor what to do in this browser/project..."></textarea>
+      <div class="prompt-hint">Enter sends · Shift+Enter makes a new line</div>
+      <div class="form-actions">
+        <button type="button" id="cancel" class="secondary hidden">Cancel</button>
+        <button type="submit" id="send">Send</button>
+      </div>
+    </form>
+
+    <section class="controls">
+      <details class="card panel-section" open>
+        <summary>Project & thread</summary>
+      <div class="grid-two">
         <label>
           Theme
           <select id="theme">
@@ -47,8 +67,12 @@
           <select id="thread"></select>
         </label>
       </div>
+      <div class="thread-rename-row">
+        <input id="thread-title" type="text" placeholder="Rename selected Cursor thread">
+        <button id="rename-thread" type="button">Rename</button>
+      </div>
 
-      <div class="card">
+      <div class="panel-block">
         <div class="section-title">Run Cursor In</div>
         <label>
           Project
@@ -56,11 +80,15 @@
         </label>
         <div class="row">
           <input id="workspace-path" type="text" placeholder="/absolute/path/to/project">
+          <button id="open-workspace" type="button">Open</button>
           <button id="add-workspace" type="button">Add</button>
         </div>
       </div>
+      </details>
 
-      <div class="card grid-two">
+      <details class="card panel-section">
+        <summary>Agent settings</summary>
+      <div class="grid-two">
         <label>
           Model
           <select id="model"></select>
@@ -74,8 +102,10 @@
           </select>
         </label>
       </div>
+      </details>
 
-      <div class="card">
+      <details class="card panel-section">
+        <summary>Browser target</summary>
         <div class="section-title">Browser Target</div>
         <label>
           Scope
@@ -90,37 +120,23 @@
           <select id="tabs"></select>
         </label>
         <div id="workspace-pills" class="pills"></div>
-      </div>
+      </details>
     </section>
 
-    <section class="context card">
+    <details class="context card panel-section">
+      <summary>What Cursor will see</summary>
       <div class="section-title">What Cursor Will See</div>
       <div id="context-summary" class="context-summary"></div>
       <details>
         <summary>Show raw context</summary>
         <pre id="context"></pre>
       </details>
-    </section>
+    </details>
 
-    <section id="agent-activity" class="agent-activity card hidden">
-      <div class="section-title">Agent activity</div>
+    <details id="agent-activity" class="agent-activity card panel-section hidden">
+      <summary>Agent activity</summary>
       <ul id="activity-list"></ul>
-    </section>
-
-    <section id="messages" class="messages"></section>
-
-    <section class="card quick-prompts">
-      <div class="section-title">Quick prompts</div>
-      <div id="quick-prompts" class="quick-prompt-row"></div>
-    </section>
-
-    <form id="chat-form">
-      <textarea id="prompt" rows="4" placeholder="Tell Cursor what to do in this browser/project..."></textarea>
-      <div class="form-actions">
-        <button type="button" id="cancel" class="secondary hidden">Cancel</button>
-        <button type="submit" id="send">Send</button>
-      </div>
-    </form>
+    </details>
 
     <script type="module" src="sidepanel.js"></script>
   </body>

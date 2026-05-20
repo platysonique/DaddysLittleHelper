@@ -1,11 +1,11 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { AGENT_BIN } from "./config.js";
-import { readJsonValue, querySqlite } from "./cursor-db.js";
+import { readJsonValue, querySqlite, writeJsonValue } from "./cursor-db.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,6 +40,21 @@ function workspaceHash(workspacePath) {
 
 function projectSlug(workspacePath) {
   return normalizePath(workspacePath).slice(1).replace(/\//g, "-");
+}
+
+function projectBasename(workspacePath) {
+  return normalizePath(workspacePath).split("/").filter(Boolean).at(-1) || "";
+}
+
+function workspaceUri(workspacePath) {
+  const path = normalizePath(workspacePath);
+  return {
+    $mid: 1,
+    fsPath: path,
+    external: `file://${path}`,
+    path,
+    scheme: "file"
+  };
 }
 
 async function readChatStoreMeta(chatDbPath) {
@@ -86,35 +101,115 @@ async function listFilesystemChats(workspacePath) {
   return threads;
 }
 
-async function listTranscriptThreadIds(workspacePath) {
-  const transcriptsRoot = join(CURSOR_HOME, "projects", projectSlug(workspacePath), "agent-transcripts");
+async function transcriptRootsForWorkspace(workspacePath) {
+  const selectedSlug = projectSlug(workspacePath);
+  const basename = projectBasename(workspacePath);
+  const projectsRoot = join(CURSOR_HOME, "projects");
   let entries = [];
   try {
-    entries = await readdir(transcriptsRoot, { withFileTypes: true });
+    entries = await readdir(projectsRoot, { withFileTypes: true });
   } catch {
-    return [];
+    return [join(projectsRoot, selectedSlug, "agent-transcripts")];
   }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  const roots = entries
+    .filter((entry) => entry.isDirectory() && (entry.name === selectedSlug || entry.name.endsWith(`-${basename}`)))
+    .map((entry) => join(projectsRoot, entry.name, "agent-transcripts"));
+  return [...new Set(roots)];
+}
+
+function extractUserQuery(text) {
+  const match = String(text || "").match(/<user_query>\s*([\s\S]*?)\s*<\/user_query>/i);
+  return (match ? match[1] : text).replace(/\s+/g, " ").trim();
+}
+
+function titleFromText(text) {
+  const cleaned = extractUserQuery(text);
+  if (!cleaned || /^reply with exactly:/i.test(cleaned) || /^resume_ok/i.test(cleaned)) return "";
+  return cleaned.length > 72 ? `${cleaned.slice(0, 69)}...` : cleaned;
+}
+
+async function titleFromTranscript(filePath) {
+  let raw = "";
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
+  for (const line of raw.split("\n").slice(0, 120)) {
+    if (!line.trim()) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (event.role !== "user") continue;
+    const content = event.message?.content;
+    if (!Array.isArray(content)) continue;
+    const text = content.map((block) => block?.text || "").join(" ").trim();
+    const title = titleFromText(text);
+    if (title) return title;
+  }
+  return "";
+}
+
+async function listTranscriptThreads(workspacePath) {
+  const roots = await transcriptRootsForWorkspace(workspacePath);
+  let entries = [];
+  for (const transcriptsRoot of roots) {
+    let rootEntries = [];
+    try {
+      rootEntries = await readdir(transcriptsRoot, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of rootEntries) {
+      if (!entry.isDirectory()) continue;
+      const transcriptPath = join(transcriptsRoot, entry.name, `${entry.name}.jsonl`);
+      const info = await stat(transcriptPath).catch(() => null);
+      entries.push({
+        id: entry.name,
+        title: await titleFromTranscript(transcriptPath) || "Cursor thread",
+        source: "cursor-transcript",
+        createdAt: null,
+        updatedAt: info?.mtime ? info.mtime.toISOString() : null,
+        transcriptPath
+      });
+    }
+  }
+  return entries;
 }
 
 function mergeThreads(items) {
   const byId = new Map();
+  const titlePriority = {
+    "cursor-agent-project": 4,
+    "cursor-chat-store": 3,
+    "cursor-transcript": 1
+  };
+  const isGenericTitle = (title) =>
+    !title || title === "Cursor thread" || title === "Untitled Cursor thread" || title === "New Agent";
+  const betterTitle = (candidate, existing) => {
+    if (isGenericTitle(candidate.title)) return existing.title;
+    if (isGenericTitle(existing.title)) return candidate.title;
+    const candidatePriority = titlePriority[candidate.source] || 0;
+    const existingPriority = titlePriority[existing.titleSource] || titlePriority[existing.source] || 0;
+    if (candidatePriority >= existingPriority) return candidate.title;
+    return existing.title;
+  };
+
   for (const item of items) {
     const existing = byId.get(item.id);
     if (!existing) {
-      byId.set(item.id, { ...item, sources: [item.source] });
+      byId.set(item.id, { ...item, titleSource: item.source, sources: [item.source] });
       continue;
     }
-    const preferTitle = (candidate, fallback) => {
-      if (!candidate || candidate === "Cursor thread" || candidate === "Untitled Cursor thread" || candidate === "New Agent") {
-        return fallback;
-      }
-      return candidate;
-    };
+    const title = betterTitle(item, existing);
     byId.set(item.id, {
       ...existing,
       ...item,
-      title: preferTitle(item.title, existing.title),
+      title,
+      titleSource: title === item.title ? item.source : existing.titleSource,
       updatedAt: item.updatedAt || existing.updatedAt,
       createdAt: item.createdAt || existing.createdAt,
       sources: [...new Set([...(existing.sources || []), item.source])]
@@ -137,6 +232,7 @@ export async function createCursorChat() {
 
 export async function listCursorThreads(workspacePath) {
   const selectedPath = normalizePath(workspacePath);
+  const selectedBasename = projectBasename(selectedPath);
   let glassProjects = [];
   try {
     glassProjects = await readJsonValue(CURSOR_GLOBAL_DB, "glass.localAgentProjects.v1");
@@ -150,7 +246,7 @@ export async function listCursorThreads(workspacePath) {
       const ws = project.workspace || {};
       const uri = ws.uri || ws.configPath || {};
       const path = uri.fsPath || uri.path || "";
-      return workspacePathMatches(selectedPath, path);
+      return workspacePathMatches(selectedPath, path) || projectBasename(path) === selectedBasename;
     })
     .map((project) => ({
       id: project.id,
@@ -162,14 +258,45 @@ export async function listCursorThreads(workspacePath) {
     }));
 
   const fromStore = await listFilesystemChats(selectedPath);
-  const transcriptIds = await listTranscriptThreadIds(selectedPath);
-  const fromTranscripts = transcriptIds.map((id) => ({
-    id,
-    title: "Cursor thread",
-    source: "cursor-transcript",
-    createdAt: null,
-    updatedAt: null
-  }));
+  const fromTranscripts = await listTranscriptThreads(selectedPath);
 
   return mergeThreads([...fromGlass, ...fromStore, ...fromTranscripts]);
+}
+
+export async function renameCursorThread({ workspacePath, threadId, title }) {
+  const selectedPath = normalizePath(workspacePath);
+  const nextTitle = String(title || "").replace(/\s+/g, " ").trim();
+  if (!threadId) throw new Error("Missing Cursor thread id.");
+  if (!nextTitle) throw new Error("Thread name cannot be empty.");
+  if (nextTitle.length > 120) throw new Error("Thread name must be 120 characters or less.");
+
+  let glassProjects = [];
+  try {
+    glassProjects = await readJsonValue(CURSOR_GLOBAL_DB, "glass.localAgentProjects.v1");
+  } catch {
+    glassProjects = [];
+  }
+  if (!Array.isArray(glassProjects)) glassProjects = [];
+
+  const now = Date.now();
+  const existing = glassProjects.find((project) => project.id === threadId);
+  if (existing) {
+    existing.name = nextTitle;
+    existing.lastUpdatedAt = now;
+  } else {
+    glassProjects.push({
+      id: threadId,
+      name: nextTitle,
+      workspace: {
+        id: workspaceHash(selectedPath),
+        uri: workspaceUri(selectedPath)
+      },
+      createdAt: now,
+      lastUpdatedAt: now,
+      isArchived: false
+    });
+  }
+
+  const { backupPath } = await writeJsonValue(CURSOR_GLOBAL_DB, "glass.localAgentProjects.v1", glassProjects);
+  return { id: threadId, title: nextTitle, backupPath };
 }

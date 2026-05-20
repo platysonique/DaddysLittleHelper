@@ -7,8 +7,11 @@ const elements = {
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
   thread: document.getElementById("thread"),
+  threadTitle: document.getElementById("thread-title"),
+  renameThread: document.getElementById("rename-thread"),
   workspace: document.getElementById("workspace"),
   workspacePath: document.getElementById("workspace-path"),
+  openWorkspace: document.getElementById("open-workspace"),
   addWorkspace: document.getElementById("add-workspace"),
   model: document.getElementById("model"),
   target: document.getElementById("target"),
@@ -35,6 +38,7 @@ let currentCursorChatId = null;
 let activeChatSessionId = null;
 let activityPollTimer = null;
 let activitySince = 0;
+let currentCursorThreads = [];
 
 function option(value, label) {
   const item = document.createElement("option");
@@ -185,6 +189,7 @@ function renderContextSummary() {
 
 function pushActivity(text) {
   elements.activity.classList.remove("hidden");
+  elements.activity.open = true;
   const item = document.createElement("li");
   item.textContent = text;
   elements.activityList.prepend(item);
@@ -381,6 +386,7 @@ async function loadBridge() {
 async function loadCursorThreads(preferredThreadId) {
   const workspaceId = elements.workspace.value;
   const { threads } = await jsonFetch(`/cursor-threads?workspaceId=${encodeURIComponent(workspaceId)}`);
+  currentCursorThreads = threads || [];
   const threadOptions = [
     option("", "New Cursor thread"),
     ...(threads || []).map((thread) => {
@@ -398,22 +404,33 @@ async function loadCursorThreads(preferredThreadId) {
   }
   if (preferredThreadId && (threads || []).some((thread) => thread.id === preferredThreadId)) {
     elements.thread.value = preferredThreadId;
+    syncThreadTitleInput();
     await loadCursorThread(preferredThreadId);
   } else {
     elements.thread.value = "";
+    syncThreadTitleInput();
     currentCursorChatId = null;
     renderLoadedMessages([]);
   }
+}
+
+function syncThreadTitleInput() {
+  const thread = currentCursorThreads.find((item) => item.id === elements.thread.value);
+  elements.threadTitle.value = thread?.title && thread.title !== "Cursor thread" ? thread.title : "";
+  elements.threadTitle.disabled = !elements.thread.value;
+  elements.renameThread.disabled = !elements.thread.value;
 }
 
 async function loadCursorThread(threadId) {
   if (!threadId) {
     currentCursorChatId = null;
     renderLoadedMessages([]);
+    syncThreadTitleInput();
     await chrome.storage.local.remove("dlhCursorThread");
     return;
   }
   currentCursorChatId = threadId;
+  syncThreadTitleInput();
   const workspaceId = elements.workspace.value;
   const transcript = await jsonFetch(
     `/cursor-threads/${encodeURIComponent(threadId)}/transcript?workspaceId=${encodeURIComponent(workspaceId)}`
@@ -423,6 +440,26 @@ async function loadCursorThread(threadId) {
     addMessage("event", "Cursor thread selected. Prior messages stay in Cursor; new prompts continue this thread.");
   }
   await chrome.storage.local.set({ dlhCursorThread: threadId });
+}
+
+async function renameCursorThread() {
+  const threadId = elements.thread.value;
+  const title = elements.threadTitle.value.trim();
+  if (!threadId || !title) return;
+  const workspaceId = elements.workspace.value;
+  elements.renameThread.disabled = true;
+  elements.renameThread.textContent = "Renaming...";
+  try {
+    const { thread } = await jsonFetch(`/cursor-threads/${encodeURIComponent(threadId)}/rename`, {
+      method: "POST",
+      body: JSON.stringify({ workspaceId, title })
+    });
+    elements.status.textContent = `Renamed Cursor thread: ${thread.title}`;
+    await loadCursorThreads(threadId);
+  } finally {
+    elements.renameThread.disabled = false;
+    elements.renameThread.textContent = "Rename";
+  }
 }
 
 async function loadTabs() {
@@ -454,12 +491,32 @@ async function refreshContext() {
 async function addWorkspace() {
   const path = elements.workspacePath.value.trim();
   if (!path) return;
-  await jsonFetch("/workspaces", {
+  const { workspace } = await jsonFetch("/workspaces", {
     method: "POST",
     body: JSON.stringify({ path })
   });
   elements.workspacePath.value = "";
   await loadBridge();
+  if (workspace?.id) {
+    elements.workspace.value = workspace.id;
+    await chrome.storage.local.set({ dlhWorkspace: workspace.id });
+    await loadCursorThreads();
+    await refreshContext();
+  }
+}
+
+async function openWorkspace() {
+  elements.openWorkspace.disabled = true;
+  elements.openWorkspace.textContent = "Opening...";
+  try {
+    const { path } = await jsonFetch("/workspaces/pick", { method: "POST", body: "{}" });
+    if (!path) return;
+    elements.workspacePath.value = path;
+    await addWorkspace();
+  } finally {
+    elements.openWorkspace.disabled = false;
+    elements.openWorkspace.textContent = "Open";
+  }
 }
 
 function parseSseChunk(buffer, onEvent) {
@@ -657,13 +714,31 @@ elements.addWorkspace.addEventListener("click", () => {
     elements.status.textContent = `Add project failed: ${friendlyFetchError(error)}`;
   });
 });
+elements.openWorkspace.addEventListener("click", () => {
+  openWorkspace().catch((error) => {
+    elements.status.textContent = `Open project failed: ${friendlyFetchError(error)}`;
+  });
+});
 elements.theme.addEventListener("change", async () => {
   setTheme(elements.theme.value);
   await chrome.storage.local.set({ dlhTheme: elements.theme.value });
 });
 elements.thread.addEventListener("change", () => {
+  syncThreadTitleInput();
   loadCursorThread(elements.thread.value).catch((error) => {
     elements.status.textContent = `Cursor thread load failed: ${error.message}`;
+  });
+});
+elements.renameThread.addEventListener("click", () => {
+  renameCursorThread().catch((error) => {
+    elements.status.textContent = `Rename failed: ${friendlyFetchError(error)}`;
+  });
+});
+elements.threadTitle.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  renameCursorThread().catch((error) => {
+    elements.status.textContent = `Rename failed: ${friendlyFetchError(error)}`;
   });
 });
 elements.workspace.addEventListener("change", async () => {
@@ -676,6 +751,11 @@ elements.target.addEventListener("change", async () => {
   await refreshContext();
 });
 elements.tabs.addEventListener("change", refreshContext);
+elements.prompt.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  elements.form.requestSubmit();
+});
 elements.form.addEventListener("submit", sendPrompt);
 elements.cancel.addEventListener("click", cancelChat);
 

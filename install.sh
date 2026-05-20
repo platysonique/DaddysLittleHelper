@@ -397,7 +397,7 @@ print_summary() {
     log "  Extension: ${ext_version}"
     log ""
     log "Recommended:"
-    log "  • Restart Vivaldi (picks up registered unpacked extension changes)"
+    log "  • Restart Vivaldi (picks up registered CRX extension changes)"
     log "  • Bridge was restarted automatically"
     log "  • npm run doctor"
   else

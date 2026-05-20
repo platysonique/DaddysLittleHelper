@@ -11,8 +11,9 @@ import {
   isLeakedPromptText
 } from "./stream-filter.js";
 import { addWorkspace, loadWorkspaces, resolveWorkspace } from "./workspaces.js";
-import { createCursorChat, listCursorThreads } from "./cursor-threads.js";
+import { createCursorChat, listCursorThreads, renameCursorThread } from "./cursor-threads.js";
 import { loadCursorTranscript } from "./cursor-transcript.js";
+import { pickFolder } from "./folder-picker.js";
 import { appendMessage, createThread, listThreads, loadThread, saveThread } from "./threads.js";
 import {
   completeBrowserCommand,
@@ -285,6 +286,10 @@ async function route(req, res) {
       sendJson(res, 201, { workspace: await addWorkspace(await readBody(req)) });
       return;
     }
+    if (req.method === "POST" && url.pathname === "/workspaces/pick") {
+      sendJson(res, 200, await pickFolder());
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/threads") {
       sendJson(res, 200, { threads: await listThreads({ workspaceId: url.searchParams.get("workspaceId") || undefined }) });
       return;
@@ -308,6 +313,16 @@ async function route(req, res) {
       sendJson(res, 200, {
         workspacePath: workspace.path,
         threads: await listCursorThreads(workspace.path)
+      });
+      return;
+    }
+    if (req.method === "POST" && url.pathname.startsWith("/cursor-threads/") && url.pathname.endsWith("/rename")) {
+      const parts = url.pathname.split("/").filter(Boolean);
+      const threadId = parts.at(-2);
+      const body = await readBody(req);
+      const workspace = await resolveWorkspace(body.workspaceId || body.workspacePath);
+      sendJson(res, 200, {
+        thread: await renameCursorThread({ workspacePath: workspace.path, threadId, title: body.title })
       });
       return;
     }

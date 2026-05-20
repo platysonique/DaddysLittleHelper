@@ -1,11 +1,13 @@
 {
   "mcpServers": {
     "dlh-browser": {
-      "command": "node",
+      "command": "/bin/bash",
       "args": [
-        "/home/papaya/Projects/DaddysLittleHelper/mcp/dlh-browser.js"
+        "/home/papaya/Projects/DaddysLittleHelper/scripts/run-mcp.sh"
       ],
       "env": {
+        "DLH_ROOT": "/home/papaya/Projects/DaddysLittleHelper",
+        "DLH_NODE_BIN": "/usr/bin/node",
         "DLH_BRIDGE_URL": "http://127.0.0.1:3847"
       }
     }

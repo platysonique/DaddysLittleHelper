@@ -100,7 +100,15 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 function workspaceIdFromTab(tab) {
-  const raw = tab?.vivExtData?.workspaceId;
+  let vivExtData = tab?.vivExtData;
+  if (typeof vivExtData === "string") {
+    try {
+      vivExtData = JSON.parse(vivExtData);
+    } catch {
+      vivExtData = {};
+    }
+  }
+  const raw = vivExtData?.workspaceId;
   if (raw === undefined || raw === null || raw === "") return null;
   const asNumber = Number(raw);
   return Number.isFinite(asNumber) ? String(Math.round(asNumber)) : String(raw);
@@ -169,9 +177,12 @@ async function tabsInCurrentWindow({ currentWorkspaceOnly = true } = {}) {
       workspaceId: await workspaceIdForTab(tab)
     }))
   );
-  const visible = currentWorkspaceOnly
-    ? tabsWithWorkspace.filter(({ workspaceId }) => workspaceId === currentWorkspaceId)
-    : tabsWithWorkspace;
+  let visible = tabsWithWorkspace;
+  if (currentWorkspaceOnly) {
+    visible = currentWorkspaceId
+      ? tabsWithWorkspace.filter(({ workspaceId }) => workspaceId === currentWorkspaceId)
+      : tabsWithWorkspace.filter(({ tab }) => tab.id === active?.id);
+  }
 
   return {
     currentWorkspaceId,
@@ -198,7 +209,7 @@ async function pageContext(tabId) {
 }
 
 async function allTabContexts() {
-  const tabs = await chrome.tabs.query({ currentWindow: true });
+  const { tabs } = await tabsInCurrentWindow({ currentWorkspaceOnly: true });
   const contexts = [];
   for (const tab of tabs) {
     if (!tab.id || !tab.url || tab.url.startsWith("chrome://") || tab.url.startsWith("vivaldi://")) continue;

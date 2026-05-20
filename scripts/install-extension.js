@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Idempotent Vivaldi/Chromium extension registration (Linux).
- * Syncs extension to ~/.local/share/daddyslittlehelper/extension,
- * registers the unpacked extension path via External Extensions.
+ * Syncs extension files, packs a signed CRX, and registers it via
+ * External Extensions for native and Flatpak Vivaldi.
  */
 import { spawn } from "node:child_process";
 import { copyFile, cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -19,6 +19,7 @@ const extDest = join(dlhHome, "extension");
 const flatpakExtDest = join(flatpakDlhHome, "extension");
 const pemPath = join(dlhHome, "packaging", "extension.pem");
 const crxPath = join(dlhHome, "daddyslittlehelper.crx");
+const flatpakCrxPath = join(flatpakDlhHome, "daddyslittlehelper.crx");
 
 const PACK_BROWSERS = [
   "chromium",
@@ -137,15 +138,18 @@ function vivaldiConfigRoots() {
   return [...roots];
 }
 
-function extensionPathForRoot(root) {
-  return root.includes(join(".var", "app", "com.vivaldi.Vivaldi", "config")) ? flatpakExtDest : extDest;
+function crxPathForRoot(root) {
+  return root.includes(join(".var", "app", "com.vivaldi.Vivaldi", "config")) ? flatpakCrxPath : crxPath;
 }
 
-async function writeExternalExtension(extensionId) {
+async function writeExternalExtension(extensionId, version) {
   let wrote = 0;
 
   for (const root of vivaldiConfigRoots()) {
-    const payload = { path: extensionPathForRoot(root) };
+    const payload = {
+      external_crx: crxPathForRoot(root),
+      external_version: version
+    };
     const body = `${JSON.stringify(payload, null, 2)}\n`;
     const dir = join(root, "External Extensions");
     await mkdir(dir, { recursive: true });
@@ -158,7 +162,7 @@ async function writeExternalExtension(extensionId) {
   return wrote;
 }
 
-async function writeWrapperScript(extensionId) {
+async function writeWrapperScript() {
   const binDir = join(homedir(), ".local", "bin");
   const wrapper = join(binDir, "vivaldi-dlh");
   const lines = [
@@ -195,6 +199,7 @@ async function writeInstallMeta({ extensionId, manifest, packed, registeredDirs 
     extensionPath: extDest,
     flatpakExtensionPath: flatpakExtDest,
     crxPath: packed ? crxPath : null,
+    flatpakCrxPath: packed ? flatpakCrxPath : null,
     registeredDirs,
     packed: Boolean(packed),
     updatedAt: new Date().toISOString()
@@ -213,18 +218,22 @@ export async function installExtension() {
   await syncFlatpakExtensionTree();
   const version = manifest.version || "0.0.0";
 
-  const shouldPackCrx = process.env.DLH_PACK_CRX === "1";
-  const packed = shouldPackCrx ? await packCrx(version) : { ok: false };
+  const packed = await packCrx(version);
+  if (!packed.ok) {
+    throw new Error("Could not pack DLH extension as CRX. Install Vivaldi/Chromium with --pack-extension support, then rerun ./install.sh");
+  }
+  await mkdir(dirname(flatpakCrxPath), { recursive: true });
+  await copyFile(crxPath, flatpakCrxPath);
 
-  const registeredDirs = await writeExternalExtension(extensionId);
+  const registeredDirs = await writeExternalExtension(extensionId, version);
   if (registeredDirs === 0) {
     console.warn("No Vivaldi config directories found yet. Extension files are ready; open Vivaldi once and rerun ./install.sh");
   }
 
-  await writeWrapperScript(extensionId);
-  await writeInstallMeta({ extensionId, manifest, packed: false, registeredDirs });
+  await writeWrapperScript();
+  await writeInstallMeta({ extensionId, manifest, packed: true, registeredDirs });
 
-  return { extensionId, extDest, crxPath: shouldPackCrx && packed.ok ? crxPath : null, packed: false, registeredDirs };
+  return { extensionId, extDest, crxPath, packed: true, registeredDirs };
 }
 
 const isMain =

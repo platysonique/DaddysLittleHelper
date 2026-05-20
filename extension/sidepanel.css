@@ -93,10 +93,16 @@ button:hover {
 }
 
 .controls,
+.top-status,
 .context,
 .messages,
+.quick-prompts,
 form {
   padding: 12px;
+}
+
+.top-status {
+  padding-bottom: 0;
 }
 
 .controls {
@@ -111,6 +117,39 @@ form {
   background: color-mix(in srgb, var(--panel) 84%, transparent);
   box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 6%, transparent);
   padding: 14px;
+}
+
+.panel-section > summary {
+  margin: 0;
+  list-style: none;
+  cursor: pointer;
+  color: CanvasText;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.panel-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-section > summary::after {
+  content: "+";
+  float: right;
+  color: var(--muted);
+}
+
+.panel-section[open] > summary::after {
+  content: "−";
+}
+
+.panel-section[open] > summary {
+  margin-bottom: 12px;
+}
+
+.panel-block {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .security-card {
@@ -236,8 +275,15 @@ textarea {
 
 .row {
   display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+}
+
+.thread-rename-row {
+  display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
+  margin-top: 10px;
 }
 
 .context {
@@ -303,7 +349,8 @@ pre {
 .messages {
   display: grid;
   gap: 10px;
-  max-height: 38vh;
+  min-height: 26vh;
+  max-height: 46vh;
   overflow: auto;
 }
 
@@ -339,7 +386,7 @@ pre {
   padding-left: 18px;
   font-size: 0.82rem;
   color: var(--muted);
-  max-height: 96px;
+  max-height: 140px;
   overflow: auto;
 }
 
@@ -361,6 +408,11 @@ pre {
 .form-actions {
   display: flex;
   gap: 8px;
+}
+
+.prompt-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .form-actions button {
