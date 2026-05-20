@@ -224,9 +224,11 @@ async function handleChat(req, res) {
   } catch (acpError) {
     if (browserAutomationEnabled) {
       const detail = acpError?.message || String(acpError);
-      emit("error", {
-        message: `Browser automation requires Cursor ACP with dlh-browser MCP. ACP failed: ${detail}`
-      });
+      const message = `Browser automation requires Cursor ACP with dlh-browser MCP. ACP failed: ${detail}`;
+      emit("error", { message });
+      emit("done", { cursorChatId, threadId: thread?.id, error: true });
+      endChatSession(chatSessionId);
+      res.end();
       return;
     }
     emit("fallback", { reason: acpError.message });

@@ -27,12 +27,23 @@ export class AcpClient extends EventEmitter {
       env: process.env
     });
 
+    this.child.once("error", (error) => {
+      this.ready = false;
+      this.child = null;
+      this.emit("spawn-error", error);
+      for (const { reject } of this.pending.values()) {
+        reject(error);
+      }
+      this.pending.clear();
+    });
+
     this.child.stderr.on("data", (chunk) => {
       this.emit("stderr", String(chunk));
     });
 
     this.child.once("exit", (code, signal) => {
       this.ready = false;
+      this.child = null;
       this.emit("exit", { code, signal });
       for (const { reject } of this.pending.values()) {
         reject(new Error(`agent acp exited (${code ?? signal})`));

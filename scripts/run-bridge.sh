@@ -32,6 +32,11 @@ if [ "${major}" -lt 20 ]; then
   exit 1
 fi
 
+if [ -n "${DLH_AGENT_BIN:-}" ] && [ ! -x "${DLH_AGENT_BIN}" ]; then
+  echo "[dlh-bridge] Ignoring stale DLH_AGENT_BIN=${DLH_AGENT_BIN}" >&2
+  unset DLH_AGENT_BIN
+fi
+
 if [ -z "${DLH_AGENT_BIN:-}" ]; then
   DLH_AGENT_BIN="$(command -v agent 2>/dev/null || true)"
   export DLH_AGENT_BIN

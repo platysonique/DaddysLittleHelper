@@ -152,6 +152,8 @@ export async function runBrowserCommand(command, params = {}, { timeoutMs = DEFA
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(id);
+      const index = queue.findIndex((job) => job.id === id);
+      if (index >= 0) queue.splice(index, 1);
       logBrowserActivity({ phase: "timeout", command });
       reject(new Error(`Browser command timed out after ${timeoutMs}ms. Is Vivaldi open with DaddysLittleHelper enabled?`));
     }, timeoutMs);
