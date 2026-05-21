@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DaddysLittleHelper — preview</title>
+    <link rel="stylesheet" href="../../extension/sidepanel.css">
+    <script>
+      const theme = new URLSearchParams(location.search).get("theme") || "light";
+      document.documentElement.dataset.theme = theme;
+    </script>
+  </head>
+  <body data-automation="on">
+    <header class="hero">
+      <div class="brand">
+        <div class="logo">DLH</div>
+        <div>
+          <h1>DaddysLittleHelper</h1>
+          <p>Bridge online · extension 0.4.9 matched</p>
+        </div>
+      </div>
+      <button type="button">Refresh</button>
+    </header>
+
+    <section class="top-status">
+      <div class="card security-card">
+        <div class="security-row">
+          <div>
+            <div class="section-title">Browser automation</div>
+            <p class="security-hint">When off, agents cannot click, type, or snapshot pages. Chat still works.</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" checked>
+            <span class="toggle-track" aria-hidden="true"></span>
+            <span class="toggle-label">On</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="messages">
+      <div class="message user">Summarize the open dashboard tabs and flag anything urgent.</div>
+      <div class="message assistant">
+        <div class="md">
+          <p>Found <strong>Command Center</strong> and <strong>PBMWorker</strong> in the current window. Tiling targets are fully automatable; workspace-only filtering may list extra tabs until Vivaldi exposes workspace metadata.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card quick-prompts">
+      <div class="section-title">Quick prompts</div>
+      <div class="quick-prompt-row">
+        <button type="button">Snapshot page</button>
+        <button type="button">List workspace tabs</button>
+        <button type="button">Run doctor</button>
+      </div>
+    </section>
+
+    <form>
+      <textarea rows="3" placeholder="Tell Cursor what to do in this browser/project...">Check the tiled tabs and click the primary CTA.</textarea>
+      <div class="prompt-hint">Enter sends · Shift+Enter makes a new line</div>
+      <div class="form-actions">
+        <button type="submit">Send</button>
+      </div>
+    </form>
+
+    <section class="controls">
+      <details class="card panel-section" open>
+        <summary>Project & thread</summary>
+        <div class="grid-two">
+          <label>Theme <select><option>Dark</option></select></label>
+          <label>Cursor thread <select><option>DLH workspace tabs</option></select></label>
+        </div>
+        <div class="panel-block">
+          <div class="section-title">Run Cursor In</div>
+          <label>Project <select><option>DaddysLittleHelper</option></select></label>
+        </div>
+      </details>
+
+      <details class="card panel-section" open>
+        <summary>Browser target</summary>
+        <label>Scope <select><option>All tabs in this workspace</option></select></label>
+        <label>Current Vivaldi workspace tabs
+          <select>
+            <option>Pomb Media — Command Center</option>
+            <option>PBMWorker</option>
+            <option>Billing — Google Cloud</option>
+          </select>
+        </label>
+        <div class="pills">
+          <span class="pill">Workspace: —</span>
+          <span class="pill">Tabs: 3</span>
+        </div>
+      </details>
+    </section>
+  </body>
+</html>

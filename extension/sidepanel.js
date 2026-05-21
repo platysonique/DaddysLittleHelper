@@ -477,6 +477,11 @@ async function loadTabs() {
     elements.tabs.replaceChildren(option("", "No tabs in current Vivaldi workspace"));
   }
   elements.tabs.dataset.workspaceId = result.currentWorkspaceId || "";
+  elements.tabs.dataset.scopeMode = result.scopeMode || "";
+  elements.tabs.title =
+    result.scopeMode === "window-fallback"
+      ? "Vivaldi did not expose workspace metadata; showing current-window tabs as a fallback."
+      : "";
   renderPills({ workspaceId: result.currentWorkspaceId, tabCount: currentWorkspaceTabs.length });
 }
 
@@ -808,4 +813,5 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 loadBridge().catch((error) => setBridgeOfflineStatus(error));
+
 

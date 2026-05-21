@@ -99,19 +99,57 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-function workspaceIdFromTab(tab) {
-  let vivExtData = tab?.vivExtData;
-  if (typeof vivExtData === "string") {
-    try {
-      vivExtData = JSON.parse(vivExtData);
-    } catch {
-      vivExtData = {};
-    }
-  }
-  const raw = vivExtData?.workspaceId;
+function normalizeWorkspaceId(raw) {
   if (raw === undefined || raw === null || raw === "") return null;
   const asNumber = Number(raw);
   return Number.isFinite(asNumber) ? String(Math.round(asNumber)) : String(raw);
+}
+
+function workspaceIdFromVivExtData(vivExtData, depth = 0) {
+  if (!vivExtData || depth > 3) return null;
+  if (typeof vivExtData === "string") {
+    try {
+      return workspaceIdFromVivExtData(JSON.parse(vivExtData), depth + 1);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof vivExtData !== "object") return null;
+  const direct = normalizeWorkspaceId(vivExtData.workspaceId ?? vivExtData.workspace_id ?? vivExtData.workspace);
+  if (direct) return direct;
+  for (const key of ["extData", "data", "tab", "vivaldi"]) {
+    const nested = workspaceIdFromVivExtData(vivExtData[key], depth + 1);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function parseVivExtData(vivExtData) {
+  if (!vivExtData) return {};
+  if (typeof vivExtData === "string") {
+    try {
+      return parseVivExtData(JSON.parse(vivExtData));
+    } catch {
+      return {};
+    }
+  }
+  return typeof vivExtData === "object" ? vivExtData : {};
+}
+
+function tabScopeFromTab(tab) {
+  const vivExtData = parseVivExtData(tab?.vivExtData);
+  const workspaceId = normalizeWorkspaceId(tab?.workspaceId) || workspaceIdFromVivExtData(vivExtData);
+  const groupId = vivExtData.group || tab?.group || null;
+  const tileId = vivExtData.tiling?.id || null;
+  return {
+    workspaceId,
+    groupId: groupId ? String(groupId) : null,
+    tileId: tileId ? String(tileId) : null
+  };
+}
+
+function workspaceIdFromTab(tab) {
+  return tabScopeFromTab(tab).workspaceId;
 }
 
 async function readTabWorkspaces() {
@@ -121,15 +159,22 @@ async function readTabWorkspaces() {
 
 async function writeTabWorkspace(tabId, workspaceId) {
   const map = await readTabWorkspaces();
-  map[String(tabId)] = workspaceId;
+  const key = String(tabId);
+  if (workspaceId !== null && workspaceId !== undefined) {
+    map[key] = workspaceId;
+  } else if (!(key in map)) {
+    map[key] = null;
+  }
   await chrome.storage.session.set({ [TAB_WORKSPACES_KEY]: map });
 }
 
 async function sendWorkspace(tabId, workspaceId) {
   if (!tabId) return;
   await writeTabWorkspace(tabId, workspaceId);
+  const map = await readTabWorkspaces();
+  const resolvedWorkspaceId = map[String(tabId)] ?? null;
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "DLH_VIVALDI_WORKSPACE", workspaceId });
+    await chrome.tabs.sendMessage(tabId, { type: "DLH_VIVALDI_WORKSPACE", workspaceId: resolvedWorkspaceId });
   } catch {
     // Content script may not exist on chrome://, extension pages, or restricted sites.
   }
@@ -137,9 +182,14 @@ async function sendWorkspace(tabId, workspaceId) {
 
 async function workspaceIdForTab(tab) {
   if (!tab?.id) return null;
+  const liveWorkspaceId = workspaceIdFromTab(tab);
+  if (liveWorkspaceId) {
+    await writeTabWorkspace(tab.id, liveWorkspaceId);
+    return liveWorkspaceId;
+  }
   const map = await readTabWorkspaces();
   if (map[String(tab.id)] !== undefined) return map[String(tab.id)];
-  return workspaceIdFromTab(tab);
+  return null;
 }
 
 function broadcastTabsChanged() {
@@ -148,13 +198,13 @@ function broadcastTabsChanged() {
 
 chrome.tabs.onActivated.addListener(async (info) => {
   const tab = await chrome.tabs.get(info.tabId).catch(() => null);
-  await sendWorkspace(info.tabId, workspaceIdFromTab(tab));
+  await sendWorkspace(info.tabId, await workspaceIdForTab(tab));
   broadcastTabsChanged();
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
-  await sendWorkspace(tabId, workspaceIdFromTab(tab));
+  await sendWorkspace(tabId, await workspaceIdForTab(tab));
   broadcastTabsChanged();
 });
 
@@ -174,20 +224,42 @@ async function tabsInCurrentWindow({ currentWorkspaceOnly = true } = {}) {
   const tabsWithWorkspace = await Promise.all(
     tabs.map(async (tab) => ({
       tab,
-      workspaceId: await workspaceIdForTab(tab)
+      workspaceId: await workspaceIdForTab(tab),
+      scope: tabScopeFromTab(tab)
     }))
   );
+  const activeScope = active ? tabScopeFromTab(active) : {};
   let visible = tabsWithWorkspace;
+  let scopeMode = "all";
+  let scopeReason = "all-tabs-requested";
   if (currentWorkspaceOnly) {
-    visible = currentWorkspaceId
-      ? tabsWithWorkspace.filter(({ workspaceId }) => workspaceId === currentWorkspaceId)
-      : tabsWithWorkspace.filter(({ tab }) => tab.id === active?.id);
+    if (currentWorkspaceId) {
+      visible = tabsWithWorkspace.filter(({ workspaceId }) => workspaceId === currentWorkspaceId);
+      scopeMode = "workspace";
+      scopeReason = "workspace-id";
+    } else if (activeScope.groupId) {
+      visible = tabsWithWorkspace.filter(({ scope }) => scope.groupId === activeScope.groupId);
+      scopeMode = "group";
+      scopeReason = "active-vivaldi-group";
+    } else if (activeScope.tileId) {
+      visible = tabsWithWorkspace.filter(({ scope }) => scope.tileId === activeScope.tileId);
+      scopeMode = "tile";
+      scopeReason = "active-vivaldi-tile";
+    } else {
+      // Vivaldi often withholds workspace metadata from extensions. Keep the
+      // picker usable instead of silently rendering an empty "workspace" list.
+      visible = tabsWithWorkspace.filter(({ tab }) => tab.hidden !== true);
+      scopeMode = "window-fallback";
+      scopeReason = "workspace-metadata-unavailable";
+    }
   }
 
   return {
     currentWorkspaceId,
     activeTabId: active?.id || null,
-    tabs: visible.map(({ tab, workspaceId }) => ({
+    scopeMode,
+    scopeReason,
+    tabs: visible.map(({ tab, workspaceId, scope }) => ({
       id: tab.id,
       windowId: tab.windowId,
       index: tab.index,
@@ -195,7 +267,9 @@ async function tabsInCurrentWindow({ currentWorkspaceOnly = true } = {}) {
       pinned: tab.pinned,
       title: tab.title,
       url: tab.url,
-      workspaceId
+      workspaceId,
+      groupId: scope.groupId,
+      tileId: scope.tileId
     }))
   };
 }

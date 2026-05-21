@@ -12,12 +12,20 @@ When `install.sh` finishes, it prints **FINISHED — you can close this terminal
 
 ## Requirements
 
+- **Cursor account** — run `agent login` before using chat or MCP. Without a logged-in Cursor CLI session, the bridge cannot start agent sessions.
 - Linux (Vivaldi or Chromium-based browser)
 - Node.js 20+
 - `curl`, `openssl`, `systemd` (user session)
 - `git` (optional, for in-place updates via pull)
 
+**Tested environment:** Pop!_OS Cosmic with **Vivaldi Flatpak** (`com.vivaldi.Vivaldi`). Other Linux + Vivaldi/Chromium setups may work but are not verified.
+
 Optional: `chromium` or `google-chrome` on PATH — packs a `.crx` for silent extension install.
+
+## Vivaldi-specific notes
+
+- **Tab tiling** (Vivaldi’s tiled tab stacks) is **fully supported** for browser automation and tab targeting.
+- **Workspace tab list** in the side panel is **partially supported**. Vivaldi does not give extensions a reliable “current workspace” API, so the tab dropdown may show **all tabs in the current window** rather than only the active workspace. You can still target tabs by selecting them, using the active tab, or relying on tiling/group metadata when Vivaldi exposes it.
 
 ## First install
 

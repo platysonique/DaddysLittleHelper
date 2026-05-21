@@ -6,6 +6,25 @@ Vivaldi side panel + local bridge + **Cursor CLI** browser automation. No Playwr
 - **`dlh-browser` MCP** for agents (`dlh_browser_snapshot`, `click`, `navigate`, …)
 - **Automatic hard-page escalation** (content script → CDP when needed)
 
+<p align="center">
+  <img src="docs/images/sidepanel-light.png" alt="DaddysLittleHelper side panel — light theme" width="360">
+  &nbsp;
+  <img src="docs/images/sidepanel-dark.png" alt="DaddysLittleHelper side panel — dark theme" width="360">
+</p>
+
+## Requirements
+
+- **Cursor account** — you must be logged into the [Cursor CLI](https://cursor.com) (`agent login`). Chat, models, and MCP tools all go through Cursor.
+- Linux with a Chromium-based browser (developed and tested on **Pop!_OS Cosmic** with **Vivaldi Flatpak**)
+- Node.js 20+, `curl`, `openssl`, `systemd` (user session)
+
+## Known limitations (Vivaldi)
+
+| Feature | Status |
+|--------|--------|
+| **Tab tiling** (stacked/split tabs in Vivaldi) | **Fully functional** for automation and targeting |
+| **“Current workspace” tab list** | **Not fully functional** — Vivaldi does not expose a stable workspace API to extensions. The dropdown may list **all tabs in the current window** instead of only the active workspace. Individual tabs can still be found and targeted (by title/URL, tiling, or active tab). |
+
 ## Quick start
 
 ```bash
@@ -50,4 +69,4 @@ Extension source: `extension/` (installed copy under `~/.local/share/daddyslittl
 
 ## License
 
-See repository license file when published.
+MIT — see [LICENSE](LICENSE).

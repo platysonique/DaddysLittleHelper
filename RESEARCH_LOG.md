@@ -21,3 +21,17 @@
 - `bridge/server.js` now has `POST /cursor-threads/:id/rename`.
 - `extension/sidepanel.html` and `extension/sidepanel.js` now expose a selected-thread rename field/button.
 - Status: RESOLVED
+
+
+### Vivaldi Workspace Tab Detection
+**Date**: 2026-05-20 10:50
+**Trigger**: DLH side panel still alternated between no workspace tabs and all Vivaldi tabs across workspaces; user explicitly required Perplexity-backed research before more changes.
+**Source**: Perplexity `perplexity_search` queries `Vivaldi current workspace tabs extension API workspaceId chrome.tabs.query 2026` and `Vivaldi Workspaces Session_ Tabs_ file format workspace id tab mapping`; Perplexity `perplexity_ask` queries on MV3 workspace alternatives and Chromium SNSS/Vivaldi session parsing.
+**Findings**:
+- Vivaldi does not provide a stable public extension API for Workspace tab membership; forum reports say all workspace tabs can appear as one list to extensions.
+- `currentWindow` and hidden-tab filters are not reliable workspace filters because Vivaldi Workspaces are browser UI state layered over Chromium windows/tabs.
+- `vivExtData` and direct `tab.workspaceId` are undocumented best-effort leaks; `vivExtData` may be missing or removed, while `tab.workspaceId` may appear in some versions/environments.
+- Vivaldi stores workspace definitions in `Default/Preferences` and workspace metadata in Chromium SNSS `Default/Sessions/Session_*` / `Tabs_*` binary records as JSON fragments such as `{"workspaceId":...}`.
+- A reliable DLH implementation needs a bridge-side fallback: parse or otherwise inspect Vivaldi session/UI state and merge it with extension `chrome.tabs` output when workspace IDs are absent.
+**Relevance**: DLH cannot truthfully label all `chrome.tabs.query({currentWindow:true})` tabs as current workspace tabs when Vivaldi does not expose workspace IDs. The extension path must be experimental; the dependable path belongs in the local Node bridge/native layer.
+**Status**: ACTIVE
