@@ -22,6 +22,12 @@ When `install.sh` finishes, it prints **FINISHED — you can close this terminal
 
 Optional: `chromium` or `google-chrome` on PATH — packs a `.crx` for silent extension install.
 
+Optional but recommended: **Perplexity MCP** in Cursor — works especially well with DLH (research via Perplexity, actions in your existing Vivaldi session).
+
+## Your browser, your logins
+
+DLH automates **the Vivaldi profile you already use**, not a disposable agent browser. Sessions, cookies, and SSO from your daily browsing carry over — you do not need to sign in again on every site when an agent takes over.
+
 ## Vivaldi-specific notes
 
 - **Tab tiling** (Vivaldi’s tiled tab stacks) is **fully supported** for browser automation and tab targeting.
