@@ -10,6 +10,43 @@ Run `npm run setup` or `npm run update` (same script). For dependencies only: `n
 
 When `install.sh` finishes, it prints **FINISHED — you can close this terminal window.** The bridge runs as a background user service; you do not need to keep the terminal open.
 
+## How it works
+
+DLH connects three pieces on your machine — **your Vivaldi browser**, a **local Node bridge**, and the **Cursor CLI** — so agents can see and control the tabs you already have open.
+
+```mermaid
+flowchart LR
+  subgraph vivaldi [Your Vivaldi]
+    SP[Side panel UI]
+    SW[Extension service worker]
+    CS[Content scripts on pages]
+    SP --> SW
+    SW --> CS
+  end
+  subgraph local [Localhost]
+    BR[Bridge :3847]
+    MCP[dlh-browser MCP]
+  end
+  subgraph cursor [Cursor CLI]
+    AG[Agent / ACP session]
+  end
+  AG <-->|stdio MCP tools| MCP
+  MCP -->|HTTP| BR
+  SW <-->|poll + commands| BR
+  AG -.->|side panel chat SSE| BR
+  SP -.-> BR
+```
+
+1. **`./install.sh`** copies the MV3 extension into Vivaldi, registers it, starts the **bridge** as a user `systemd` service (`http://127.0.0.1:3847`), and wires **`dlh-browser`** into Cursor’s MCP config.
+2. **Extension (background)** keeps a long-lived link to the bridge. When automation is **On**, it accepts queued commands (navigate, snapshot, click, list tabs, …) and runs them against **your** Vivaldi profile.
+3. **Page automation** tries a fast path first (content scripts build an interactive `@ref` tree). Hard pages (thin trees, cross-origin frames, canvas/WebGL) **escalate to CDP** inside the same tab — still your browser, not a second automation profile.
+4. **Cursor agents** call `dlh_browser_*` tools via the MCP server → bridge → extension. The side panel can also chat through the bridge, which spawns **`agent acp`** sessions against your chosen project folder.
+5. **Perplexity MCP** (optional) complements this: Perplexity answers from the web; DLH operates on whatever is already loaded and signed in in Vivaldi.
+
+Nothing leaves your machine except Cursor’s own API traffic for models/chat. Browser cookies and logins stay in Vivaldi.
+
+See also [README.md](README.md) for screenshots, limitations, and daily-use notes.
+
 ## Requirements
 
 - **Cursor account** — run `agent login` before using chat or MCP. Without a logged-in Cursor CLI session, the bridge cannot start agent sessions.
