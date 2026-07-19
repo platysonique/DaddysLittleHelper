@@ -1,6 +1,6 @@
 # Attribution and lineage
 
-DaddysLittleHelper is an **original implementation** for Vivaldi + Cursor CLI. It is **not** a fork of BrowserOS and does not ship BrowserOS source code.
+RZBrowse (repo: RZBrowse) is an **original implementation** for Vivaldi + Cursor CLI. It is **not** a fork of BrowserOS and does not ship BrowserOS source code.
 
 ## What we studied (not copied)
 
@@ -18,8 +18,8 @@ See `../DaddysLittleHelper-Research/BROWSEROS_OSS_REUSE_REPORT.md` for the resea
 | Component | Notes |
 |-----------|--------|
 | `bridge/` | Cursor CLI ACP/print runner, thread store, browser command hub (HTTP long-poll, not BrowserOS WebSocket controller). |
-| `mcp/dlh-browser.js` | DLH-specific MCP tool surface (`dlh_browser_*`). |
-| `extension/page/` | **DLH-native** modules: `context.js` (structured page extract), `snapshot.js` (scored `dlh-tree-v1`, `@` refs), `actions.js` (pointer-first interaction). |
+| `mcp/dlh-browser.js` | dlh-browser MCP (internal organ) tool surface (`dlh_browser_*`). |
+| `extension/page/` | **dlh-native** modules: `context.js` (structured page extract), `snapshot.js` (scored `dlh-tree-v1`, `@` refs), `actions.js` (pointer-first interaction). |
 | `extension/sidepanel.*` | Custom UI; not BrowserOS React/WXT agent app. |
 
 ## Deliberately removed (borrowed-era hacks)

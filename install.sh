@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# DaddysLittleHelper — ONE script: extension, MCP, bridge (systemd), verify.
+# RZBrowse — ONE script: extension, MCP, bridge (systemd), verify.
 # You never run systemctl, dlh-bridge, or setup-service by hand — only this file.
 #
-#   git clone … && cd DaddysLittleHelper && ./install.sh    # first install
-#   cd DaddysLittleHelper && ./install.sh                     # update / repair in place
+#   git clone … && cd RZBrowse && ./install.sh    # first install
+#   cd RZBrowse && ./install.sh                     # update / repair in place
 #   ./install.sh --pull                                     # install/update + git pull
 #   ./install.sh --no-pull                                  # skip git pull on update
 #
@@ -27,7 +27,7 @@ OLD_ROOT=""
 
 usage() {
   cat <<'EOF'
-DaddysLittleHelper install.sh — install or update (same script)
+RZBrowse install.sh — install or update (same script)
 
 Usage:
   ./install.sh              Install, or update if already installed
@@ -144,7 +144,7 @@ write_state() {
 
   mkdir -p "${CONFIG_DIR}"
   cat >"${STATE_FILE}" <<EOF
-# DaddysLittleHelper install state (managed by install.sh)
+# RZBrowse install state (managed by install.sh)
 DLH_ROOT=${ROOT}
 DLH_HOME=${DLH_HOME}
 DLH_BRIDGE_URL=http://127.0.0.1:3847
@@ -291,7 +291,7 @@ install_bridge_service() {
   mkdir -p "${unit_dir}" "${LOG_DIR}"
   cat >"${unit_path}" <<UNIT
 [Unit]
-Description=DaddysLittleHelper local bridge
+Description=RZBrowse local bridge
 After=network.target
 
 [Service]
@@ -423,7 +423,7 @@ print_summary() {
   echo "  FINISHED — you can close this terminal window."
   echo "  The bridge keeps running in the background (systemd user"
   echo "  service: daddyslittlehelper). You do NOT need this terminal"
-  echo "  open for DaddysLittleHelper to work."
+  echo "  open for RZBrowse to work."
   echo "================================================================"
   echo ""
 }

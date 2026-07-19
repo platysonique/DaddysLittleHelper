@@ -1,4 +1,4 @@
-# Install & update DaddysLittleHelper
+# Install & update RZBrowse
 
 One script does everything: **install**, **update**, and **repair**. Safe to rerun.
 
@@ -12,7 +12,7 @@ When `install.sh` finishes, it prints **FINISHED — you can close this terminal
 
 ## How it works
 
-DLH connects three pieces on your machine — **your Vivaldi browser**, a **local Node bridge**, and the **Cursor CLI** — so agents can see and control the tabs you already have open.
+RZBrowse connects three pieces on your machine — **your Vivaldi browser**, a **local Node bridge**, and the **Cursor CLI** — so agents can see and control the tabs you already have open.
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,7 @@ flowchart LR
 2. **Extension (background)** keeps a long-lived link to the bridge. When automation is **On**, it accepts queued commands (navigate, snapshot, click, list tabs, …) and runs them against **your** Vivaldi profile.
 3. **Page automation** tries a fast path first (content scripts build an interactive `@ref` tree). Hard pages (thin trees, cross-origin frames, canvas/WebGL) **escalate to CDP** inside the same tab — still your browser, not a second automation profile.
 4. **Cursor agents** call `dlh_browser_*` tools via the MCP server → bridge → extension. The side panel can also chat through the bridge, which spawns **`agent acp`** sessions against your chosen project folder.
-5. **Perplexity MCP** (optional) complements this: Perplexity answers from the web; DLH operates on whatever is already loaded and signed in in Vivaldi.
+5. **Perplexity MCP** (optional) complements this: Perplexity answers from the web; RZBrowse operates on whatever is already loaded and signed in in Vivaldi.
 
 Nothing leaves your machine except Cursor’s own API traffic for models/chat. Browser cookies and logins stay in Vivaldi.
 
@@ -59,11 +59,11 @@ See also [README.md](README.md) for screenshots, limitations, and daily-use note
 
 Optional: `chromium` or `google-chrome` on PATH — packs a `.crx` for silent extension install.
 
-Optional but recommended: **Perplexity MCP** in Cursor — works especially well with DLH (research via Perplexity, actions in your existing Vivaldi session).
+Optional but recommended: **Perplexity MCP** in Cursor — works especially well with RZBrowse (research via Perplexity, actions in your existing Vivaldi session).
 
 ## Your browser, your logins
 
-DLH automates **the Vivaldi profile you already use**, not a disposable agent browser. Sessions, cookies, and SSO from your daily browsing carry over — you do not need to sign in again on every site when an agent takes over.
+RZBrowse automates **the Vivaldi profile you already use**, not a disposable agent browser. Sessions, cookies, and SSO from your daily browsing carry over — you do not need to sign in again on every site when an agent takes over.
 
 ## Vivaldi-specific notes
 
@@ -73,8 +73,8 @@ DLH automates **the Vivaldi profile you already use**, not a disposable agent br
 ## First install
 
 ```bash
-git clone https://github.com/platysonique/DaddysLittleHelper.git
-cd DaddysLittleHelper
+git clone https://github.com/platysonique/RZBrowse.git
+cd RZBrowse
 ./install.sh
 agent login
 ```
@@ -86,7 +86,7 @@ Restart Vivaldi. In the side panel, turn **Browser automation** **On** (default 
 After `git pull` or copying new files into your clone:
 
 ```bash
-cd DaddysLittleHelper
+cd RZBrowse
 ./install.sh
 ```
 
