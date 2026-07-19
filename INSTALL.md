@@ -97,6 +97,7 @@ On **update**, the script by default:
 3. Re-syncs the extension to `~/.local/share/daddyslittlehelper/extension`
 4. Re-registers Vivaldi External Extensions / CRX
 5. Updates MCP config and **restarts** the bridge (`systemd --user`)
+6. Installs `~/.cursor/rules/rzbrowse-browser-automation.mdc` (agent how-to for RZBrowse)
 
 Then restart Vivaldi once so the extension reloads.
 

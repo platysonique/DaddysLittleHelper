@@ -81,6 +81,8 @@ Restart Vivaldi. In the side panel, turn **Browser automation** **On**.
 
 **Update later:** `cd RZBrowse && ./install.sh` (pulls from git when already installed and the tree is clean). Use `npm run setup` / `npm run update` as aliases.
 
+`./install.sh` also wires Cursor: writes `dlh-browser` into `~/.cursor/mcp.json`, enables the MCP when possible, and installs the always-on agent rule `~/.cursor/rules/rzbrowse-browser-automation.mdc` (same file lives in the repo under `.cursor/rules/`).
+
 ## Daily use
 
 - Open the RZBrowse side panel in Vivaldi

@@ -1,0 +1,135 @@
+---
+description: RZBrowse — how to drive the user's daily Vivaldi (dlh-browser organs)
+alwaysApply: true
+---
+
+# RZBrowse (daily Vivaldi browser)
+
+**Product name:** RZBrowse. **Organs (unchanged):** MCP server `dlh-browser`, tools `dlh_*` / `dlh_browser_*`, bridge `http://127.0.0.1:3847`, install paths `~/.local/share/daddyslittlehelper`, systemd unit `daddyslittlehelper`. GitHub: `https://github.com/platysonique/RZBrowse` (local folder may still be named DaddysLittleHelper).
+
+## When to use what
+
+| Goal | Use |
+|------|-----|
+| Drive **daily Vivaldi** (real tabs, cookies, SSO) | **RZBrowse** → `dlh-browser` MCP (or bridge HTTP if MCP is down) |
+| Cursor-owned IDE browser tab | Cursor **Browser IDE** MCP |
+| Playwright / remote-debug on daily profile | **Never** unless the user explicitly asks |
+
+If the user says “browser,” “my tabs,” “Vivaldi,” “Perplexity tab,” or “RZBrowse/DLH,” default to RZBrowse — do not ask them to repeat the stack.
+
+## Start of browser work
+
+1. Confirm RZBrowse side panel **Browser automation** is ON. If off, stop and say so — do not use motors.
+2. Prefer MCP: `dlh_bridge_status` → `dlh_browser_context` (or `target: all-tabs-context`). Fallback: `POST http://127.0.0.1:3847/browser/exec` with `params` (not `args`).
+3. Find tabs with `dlh_browser_tabs`. Own a tab with `dlh_browser_lease_claim` when multi-job / parallel agents; motors need `leaseToken` (MCP auto-attaches last claim). Default mission may auto-claim active tab.
+
+## Tip — Space “Start a session” mode: Search ≠ Computer
+
+On a Perplexity **Space home** (`/spaces/...`), the composer under **Start a session in …** has a mode toggle. Default may be **Computer**.
+
+| Mode | URL after submit | Use for |
+|------|------------------|---------|
+| **Search** | `/search/<uuid>` | Invent / AB1a / normal PP Space threads |
+| **Computer** | `/computer/tasks/<uuid>` | Perplexity Computer tasks only |
+
+**Hard gate before Enter/Submit on a Space composer:**
+
+1. Read mode buttons near `#ask-input`.
+2. Require **Search** `aria-pressed="true"` and **Computer** `aria-pressed="false"`.
+3. If Computer is pressed, click `button[aria-label="Search"]` (or the Search mode control) and re-check.
+4. After submit, confirm URL is `/search/...` with the Space chip (e.g. **Rozi**) — **not** `/computer/tasks/...`.
+
+Wrong mode wastes a Computer task and is not a Space invent thread.
+
+## Tip — finding a Perplexity thread by phrase
+
+When the user points at a Perplexity thread by quoting text from it, **do not** only scan tabs whose title is literally `Perplexity`. Active thread tabs often use the **thread prompt/title** as the tab title (sometimes truncated with `...`).
+
+1. List tabs (`dlh_browser_tabs` / bridge `tabs`).
+2. Match the quoted phrase (or a distinctive substring) against **tab titles** first — e.g. title starts with or contains the phrase.
+3. `activate_tab` / focus that `tabId`, then confirm URL (`perplexity.ai/search/...`) via `context`.
+4. Only if title match fails, activate remaining Perplexity/library tabs and search page context — title match is usually enough and much faster.
+
+## Tip — Perplexity top-bar ellipsis (Session actions) + save thread as Space file
+
+On an open Perplexity **session/thread** page, the top bar (near Share) has an **ellipsis / three-dots** button. Accessibility name is often **`Session actions`**; the icon is dots (`#pplx-icon-dots`). Prefer `click_at` on that top-bar control if a plain click does not open the menu.
+
+### What that menu typically contains
+
+| Item | Meaning |
+|------|---------|
+| Swap Space | Move session to another Space |
+| Remove from Space | Detach session from current Space (session may remain elsewhere) |
+| Make session private | Privacy |
+| Rename Session | Rename |
+| **Save as file to Space** | Write a **static snapshot** of this thread into the Space as a file (Brain/files). Label appears when the session is **not** currently filed. |
+| **Remove file from Space** | Opposite of save-as-file. Appears when a Space file snapshot **already exists** for this session. |
+| Export as PDF / Markdown / DOCX | **Local download** — not the same as save-as-file-to-Space. Do not use Export when the operator asked to save into the Space. |
+| Delete | Delete session |
+
+### Menu flip lag (Perplexity product quirk)
+
+After **Remove file from Space** (or Save), the ellipsis menu may still show the old label for a while. Sometimes the flip is **immediate**; sometimes it takes an arbitrary delay (“whenever it wants”). That is a Perplexity-side lag, not a failed click by default.
+
+- Wait and re-open the ellipsis (and/or Space chip refresh + thread reload) before concluding Save is missing.
+- A toast like “File removed from space” can be true while the menu label is still stale.
+- If Save never appears after a patient refresh cycle, then report lag vs credits vs UI drift.
+
+### When to Save as file to Space (token threshold)
+
+Invent / long working threads: **do not** Save-as-file-to-Space early for continuity. Wait until the thread is large enough that a new Space session will ingest a **full** prior thread.
+
+**Calibration (2026-07-19):** one full invent-thread export
+(`CSM_INVENT_THREAD_CONTINUITY_2026-07-19.md` / Perplexity “Export as Markdown” of the CSM invent session) measured **~98,347 tokens** (`tiktoken` `cl100k_base`; ~400k chars / ~50.8k words).
+
+**Policy from now on:**
+
+1. Keep working in the live thread without filing for continuity until estimated size is **≥ ~98k tokens** (use that calibration as the bar).
+2. Then run the static-snapshot refresh if needed → **Save as file to Space**.
+3. Only then start a **new** Space session and tell Perplexity to read that file so it gets the **full** old thread — not a thin mid-thread snapshot.
+
+Early saves waste the continuity file on a partial thread. Export-as-Markdown is for local metering/calibration only, not a substitute for Save-as-file-to-Space.
+
+### Static-snapshot workaround (mandatory when refreshing an already-filed thread)
+
+Perplexity’s “save as file to Space” is a **static snapshot**. If you keep working in the same thread after filing, the Space file goes stale. Operator workaround (until product fixes it):
+
+1. Open top-bar **ellipsis** → **Remove file from Space** (only if that item is present).
+2. Click the **Space name chip** in the top bar (e.g. **Rozi**) to leave the thread and land on the Space home so the Space can refresh.
+3. Re-open the same thread (History / Space sessions list / known URL).
+4. Wait through menu-flip lag if needed → open ellipsis → **Save as file to Space**.
+5. Confirm the file appears / menu eventually flips back to **Remove file from Space**.
+6. For a fresh context window: start a **new** session **inside that Space** and tell Perplexity to read the newly saved file for continuity, then continue there.
+
+If after a patient Remove + Space refresh + thread reload cycle Save still never appears, stop and report (lag vs credits vs UI drift). Do not Export-as-Markdown as a substitute.
+
+Do **not** confuse this with Export-as-Markdown download.
+
+## Tip — long pastes into a Perplexity composer
+
+When text is too large for one reliable Submit into Perplexity’s follow-up box via RZBrowse:
+
+1. Prefer one message if ≤ ~2.5–3.5k characters. Larger → **split into sections**.
+2. First: tell Perplexity to **WAIT** — do not answer until a final **DONE**.
+3. Send `PART 1/N` … `PART N/N` with a unique marker in each part; then send **DONE**.
+4. **Hard gates (mandatory):**
+   - Clear `#ask-input` fully before each paste. If Lexical won’t clear, `selectAll` + `document.execCommand('insertText', false, '')`, and clear `pplx.followupInputDrafts` / thread followup draft keys if a stuck draft persists.
+   - Prefer bridge `insert_text` over only setting DOM text.
+   - Verify composer **length ≈ expected** before Submit. Never force-submit when fill failed.
+   - After Submit, wait until composer is empty, then confirm the part marker appears in page text before sending the next part.
+   - Pause a few seconds between parts.
+5. Mid-split replies do not count — only the answer after **DONE**.
+6. Failure smell: Submit “ok” but leftover hundreds of characters remain in the composer → paste never landed; clear and resend that part.
+
+## Interaction loop
+
+- Snapshot before click/fill/type/select/scroll → use `@refs` + that snapshot’s `refGeneration` / `frameId`.
+- Re-snapshot after navigate, modal, wait, or big DOM change. Never reuse stale refs.
+- Prefer top-frame snapshot; `allFrames: true` only for iframe targets. `ifUnchanged: true` on stable pages.
+- SPA/React: prefer `dlh_browser_type` over fill when values don’t stick.
+- Perplexity / Lexical / thin a11y trees: escalate via evaluate / `insert_text` / `press_keys` / `click_at` (CDP path is automatic; do not ask the user to toggle “deep”).
+- Same interaction fails twice → stop and report the blocker.
+
+## Identity
+
+Extension display name **RZBrowse**; tool names stay `dlh_browser_*`. Same extension ID across updates.

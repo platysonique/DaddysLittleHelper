@@ -269,6 +269,18 @@ enable_mcp() {
   fi
 }
 
+install_cursor_rules() {
+  local src="${ROOT}/.cursor/rules/rzbrowse-browser-automation.mdc"
+  local dest="${HOME}/.cursor/rules/rzbrowse-browser-automation.mdc"
+  if [ ! -f "${src}" ]; then
+    warn "Missing ${src} — skip Cursor rule install"
+    return 0
+  fi
+  mkdir -p "${HOME}/.cursor/rules"
+  cp -f "${src}" "${dest}"
+  log "Cursor rule → ${dest} (always-on RZBrowse how-to)"
+}
+
 bridge_health_ok() {
   curl -sf --max-time 2 "http://127.0.0.1:3847/health" >/dev/null 2>&1
 }
@@ -377,6 +389,7 @@ run_core_setup() {
   log "Sync extension → ${DLH_HOME}/extension"
   node "${ROOT}/scripts/install-extension.js"
   enable_mcp
+  install_cursor_rules
   ensure_bridge_running
   chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 }
