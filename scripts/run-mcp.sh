@@ -12,8 +12,8 @@ elif [ -x "${HOME}/.nvm/versions/node/v23.11.1/bin/node" ]; then
 elif command -v node >/dev/null 2>&1; then
   NODE_BIN="$(command -v node)"
 else
-  echo "Node.js 20+ not found for dlh-browser MCP." >&2
+  echo "Node.js 20+ not found for rzbrowse MCP." >&2
   exit 127
 fi
 
-exec "${NODE_BIN}" "${ROOT}/mcp/dlh-browser.js"
+exec "${NODE_BIN}" "${ROOT}/mcp/rzbrowse.js"

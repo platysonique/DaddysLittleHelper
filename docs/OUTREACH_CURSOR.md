@@ -11,7 +11,7 @@
 
 ## Core pitch (short)
 
-RZBrowse is a **Cursor-native** stack: Vivaldi side panel + local bridge + official **`dlh-browser` MCP** for Cursor CLI. Agents automate **your real browser profile** (cookies, SSO, extensions)—not a sterile Playwright profile where every site wants a fresh login. Pairs especially well with **Perplexity MCP** (research there, act in Vivaldi). Tab tiling in Vivaldi is fully supported; workspace-only tab filtering is partial (Vivaldi API limitation).
+RZBrowse is a **Cursor-native** stack: Vivaldi side panel + local bridge + official **`rzbrowse` MCP** for Cursor CLI. Agents automate **your real browser profile** (cookies, SSO, extensions)—not a sterile Playwright profile where every site wants a fresh login. Pairs especially well with **Perplexity MCP** (research there, act in Vivaldi). Tab tiling in Vivaldi is fully supported; workspace-only tab filtering is partial (Vivaldi API limitation).
 
 ---
 
@@ -37,9 +37,9 @@ RZBrowse is a **Cursor-native** stack: Vivaldi side panel + local bridge + offic
 
 **Subject:** RZBrowse — Cursor MCP on your real browser profile
 
-Hi [Name] — I'm Adonis. I built **RZBrowse**: open-source Vivaldi side panel + local bridge + **`dlh-browser` MCP** for Cursor CLI.
+Hi [Name] — I'm Adonis. I built **RZBrowse**: open-source Vivaldi side panel + local bridge + **`rzbrowse` MCP** for Cursor CLI.
 
-**Why it matters for Cursor:** agents can snapshot/click/navigate in the **user's actual browser session** (cookies + SSO intact), not a throwaway automation browser. Side-panel ACP chat, CDP escalation on hard pages, `agent mcp enable dlh-browser`. Works great alongside **Perplexity MCP** (research → execute in-place).
+**Why it matters for Cursor:** agents can snapshot/click/navigate in the **user's actual browser session** (cookies + SSO intact), not a throwaway automation browser. Side-panel ACP chat, CDP escalation on hard pages, `agent mcp enable rzbrowse`. Works great alongside **Perplexity MCP** (research → execute in-place).
 
 **Repo:** https://github.com/platysonique/RZBrowse
 
@@ -61,7 +61,7 @@ Happy to do a 15-min demo if useful for the agent/MCP roadmap. Built and dogfood
 
 **Subject:** Ecosystem idea — real-browser MCP for Cursor CLI
 
-Hi [Name] — Adonis here. I shipped **RZBrowse**, an open integration that puts Cursor agents **inside the browser users already log into** (Vivaldi + `dlh-browser` MCP), with a side-panel chat surface.
+Hi [Name] — Adonis here. I shipped **RZBrowse**, an open integration that puts Cursor agents **inside the browser users already log into** (Vivaldi + `rzbrowse` MCP), with a side-panel chat surface.
 
 This could be a strong **ecosystem story**: “Cursor agents that work in your real session,” especially paired with Perplexity MCP. Public repo: https://github.com/platysonique/RZBrowse
 

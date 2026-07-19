@@ -38,12 +38,19 @@ const agentStatus = await command("agent", ["status"]);
 failures += line(agentStatus.ok && /logged in/i.test(agentStatus.stdout), "Cursor CLI logged in", agentStatus.stdout.trim());
 
 const mcpList = await command("agent", ["mcp", "list"]);
-failures += line(/dlh-browser:\s+ready/i.test(`${mcpList.stdout}\n${mcpList.stderr}`), "DLH browser MCP approved", "expected dlh-browser: ready");
+failures += line(
+  /rzbrowse:\s+ready/i.test(`${mcpList.stdout}\n${mcpList.stderr}`) ||
+    /dlh-browser:\s+ready/i.test(`${mcpList.stdout}\n${mcpList.stderr}`),
+  "rzbrowse MCP approved",
+  "expected rzbrowse: ready (or dlh-browser alias)"
+);
 
 const mcpConfig = JSON.parse(await readFile(new URL("../.cursor/mcp.json", import.meta.url), "utf8"));
-const dlhMcp = mcpConfig?.mcpServers?.["dlh-browser"];
-failures += line(Boolean(dlhMcp?.command === "node" && dlhMcp?.args?.length), "Project MCP uses built-in dlh-browser");
-
+const rzbrowseMcp = mcpConfig?.mcpServers?.rzbrowse || mcpConfig?.mcpServers?.["dlh-browser"];
+failures += line(
+  Boolean(rzbrowseMcp?.command && rzbrowseMcp?.args?.length),
+  "Project MCP uses built-in rzbrowse"
+);
 const bridge = await get("http://127.0.0.1:3847/health");
 failures += line(bridge.ok, "Bridge is running", bridge.body.trim());
 
@@ -66,8 +73,8 @@ try {
 failures += line(browser.ok && extensionConnected, "Extension connected to bridge", browser.body.trim());
 
 console.log("\nManual checks:");
-console.log("1. DaddysLittleHelper extension is loaded unpacked from ./extension.");
-console.log("2. Reload DaddysLittleHelper after code changes.");
+console.log("1. RZBrowse extension is loaded unpacked from ./extension.");
+console.log("2. Reload RZBrowse after code changes.");
 console.log("3. Vivaldi should be open so the extension can attach to the bridge.");
 
 process.exit(failures === 0 ? 0 : 1);

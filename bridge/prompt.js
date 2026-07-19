@@ -19,15 +19,16 @@ export function buildPrompt({
     : "";
 
   const automationLine = browserAutomationEnabled
-    ? "- Browser automation is ON. You MUST use dlh-browser MCP tools (dlh_browser_navigate, dlh_browser_snapshot, dlh_browser_click, etc.) for any browser action. Do not claim tools are missing if dlh-browser is configured. Escalation to CDP is automatic on hard pages."
-    : "- Browser automation is OFF (user security toggle in the side panel). Do NOT call dlh-browser or any browser control tools. Answer using text and project context only.";
+    ? "- Browser automation is ON. You MUST use rzbrowse MCP tools (rzbrowse_navigate, rzbrowse_snapshot, rzbrowse_click, etc.) for any browser action. Do not claim tools are missing if rzbrowse is configured. Legacy dlh_browser_* aliases still work. Escalation to CDP is automatic on hard pages."
+    : "- Browser automation is OFF (user security toggle in the side panel). Do NOT call rzbrowse / dlh-browser or any browser control tools. Answer using text and project context only.";
 
   const browserPlaybook = browserAutomationEnabled
-    ? `- For browser actions: call dlh_browser_snapshot before interacting, re-snapshot after navigation or DOM changes, use @ refs with matching refGeneration and frameId, stop after repeated failed clicks.
-- Tools: dlh_browser_find, dlh_browser_select, dlh_browser_screenshot; dlh_browser_click_at for canvas coordinates.`
+    ? `- For browser actions: call rzbrowse_snapshot before interacting, re-snapshot after navigation or DOM changes, use @ refs with matching refGeneration and frameId, stop after repeated failed clicks.
+- Tools: rzbrowse_find, rzbrowse_select, rzbrowse_screenshot; rzbrowse_click_at for canvas coordinates.
+- Tab leases (always on): claim with rzbrowse_lease_claim before multi-job work (named missionId). Single-job may auto-claim default mission. Motors need leaseToken (MCP auto-attaches last claim). Use lease_steal/transfer/wait/release — agents only, no human gate. Claim/click OK is not "done".`
     : "";
 
-  return `You are DaddysLittleHelper, running through Cursor CLI for the user's selected local project.
+  return `You are RZBrowse, running through Cursor CLI for the user's selected local project.
 
 Hard constraints:
 - Use Cursor CLI tools and configured MCP servers only.
@@ -55,8 +56,8 @@ ${allTabs ? `All open tab contexts:\n${allTabs}\n` : ""}
 
 Thread:
 - Cursor thread resume ID: ${cursorChatId || "new"}
-- DaddysLittleHelper local thread ID: ${thread?.id || "none"}
-- Prior messages in DaddysLittleHelper store: ${thread?.messages?.length || 0}
+- RZBrowse local thread ID: ${thread?.id || "none"}
+- Prior messages in RZBrowse store: ${thread?.messages?.length || 0}
 
 User request:
 ${userText}`;
@@ -93,10 +94,10 @@ export function buildPrintPrompt({
   }
 
   const automation = browserAutomationEnabled
-    ? "Browser automation is ON (dlh-browser MCP)."
-    : "Browser automation is OFF — do not use dlh-browser tools.";
+    ? "Browser automation is ON (rzbrowse MCP)."
+    : "Browser automation is OFF — do not use rzbrowse tools.";
 
-  return `[DaddysLittleHelper · ${workspace.path} · ${automation}]
+  return `[RZBrowse · ${workspace.path} · ${automation}]
 ${hints.join("\n")}
 
 ${userText}`;

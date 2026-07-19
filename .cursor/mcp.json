@@ -1,13 +1,22 @@
 {
   "mcpServers": {
     "dlh-browser": {
-      "command": "/bin/bash",
+      "command": "/home/papaya/.nvm/versions/node/v23.11.1/bin/node",
       "args": [
-        "/home/papaya/Projects/DaddysLittleHelper/scripts/run-mcp.sh"
+        "/home/papaya/Projects/DaddysLittleHelper/mcp/dlh-browser.js"
       ],
+      "cwd": "/home/papaya/Projects/DaddysLittleHelper",
       "env": {
-        "DLH_ROOT": "/home/papaya/Projects/DaddysLittleHelper",
-        "DLH_NODE_BIN": "/usr/bin/node",
+        "DLH_BRIDGE_URL": "http://127.0.0.1:3847"
+      }
+    },
+    "rzbrowse": {
+      "command": "/home/papaya/.nvm/versions/node/v23.11.1/bin/node",
+      "args": [
+        "/home/papaya/Projects/DaddysLittleHelper/mcp/rzbrowse.js"
+      ],
+      "cwd": "/home/papaya/Projects/DaddysLittleHelper",
+      "env": {
         "DLH_BRIDGE_URL": "http://127.0.0.1:3847"
       }
     }

@@ -262,11 +262,12 @@ enable_mcp() {
   agent_bin="$(resolve_agent_bin)" || die "Cursor CLI 'agent' not found; bridge cannot run chat."
   export DLH_AGENT_BIN="${agent_bin}"
   node "${ROOT}/scripts/ensure-mcp.js"
-  if "${agent_bin}" mcp enable dlh-browser 2>/dev/null; then
-    log "dlh-browser MCP enabled"
+  if "${agent_bin}" mcp enable rzbrowse 2>/dev/null; then
+    log "rzbrowse MCP enabled"
   else
-    log "Run after login: ${agent_bin} mcp enable dlh-browser"
+    log "Run after login: ${agent_bin} mcp enable rzbrowse"
   fi
+  "${agent_bin}" mcp enable dlh-browser 2>/dev/null || true
 }
 
 install_cursor_rules() {
@@ -391,7 +392,7 @@ run_core_setup() {
   enable_mcp
   install_cursor_rules
   ensure_bridge_running
-  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-bridge.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/rzbrowse.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 }
 
 print_summary() {
@@ -419,7 +420,7 @@ print_summary() {
     log ""
     log "Next (one-time):"
     log "  1. agent login"
-    log "  2. agent mcp enable dlh-browser   (if not already)"
+    log "  2. agent mcp enable rzbrowse   (if not already)"
     log "  3. Restart Vivaldi"
     log "  4. Side panel → turn Browser automation ON (security default: off)"
     log "  5. npm run doctor"
@@ -443,7 +444,7 @@ print_summary() {
 
 main() {
   mkdir -p "${CONFIG_DIR}" "${LOG_DIR}" "${HOME}/.local/bin" "${HOME}/.cursor"
-  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
+  chmod +x "${ROOT}/install.sh" "${ROOT}/scripts/install-dlh.sh" "${ROOT}/scripts/run-mcp.sh" "${ROOT}/scripts/mcp-smoke.js" "${ROOT}/mcp/rzbrowse.js" "${ROOT}/mcp/dlh-browser.js" 2>/dev/null || true
 
   parse_args "$@"
   if [ "${BRIDGE_ONLY}" = 1 ]; then

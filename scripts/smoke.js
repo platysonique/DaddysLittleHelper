@@ -40,10 +40,10 @@ try {
 
 try {
   const mcp = JSON.parse(await readFile(new URL("../.cursor/mcp.json", import.meta.url), "utf8"));
-  const dlh = mcp?.mcpServers?.["dlh-browser"];
-  checks.push(["DLH browser MCP configured", dlh?.command === "node" && Array.isArray(dlh?.args) && dlh.args.length > 0]);
+  const rzb = mcp?.mcpServers?.rzbrowse || mcp?.mcpServers?.["dlh-browser"];
+  checks.push(["rzbrowse MCP configured", Boolean(rzb?.command && Array.isArray(rzb?.args) && rzb.args.length > 0)]);
 } catch {
-  checks.push(["DLH browser MCP configured", false]);
+  checks.push(["rzbrowse MCP configured", false]);
 }
 
 try {

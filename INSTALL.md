@@ -25,7 +25,7 @@ flowchart LR
   end
   subgraph local [Localhost]
     BR[Bridge :3847]
-    MCP[dlh-browser MCP]
+    MCP[rzbrowse MCP]
   end
   subgraph cursor [Cursor CLI]
     AG[Agent / ACP session]
@@ -37,10 +37,10 @@ flowchart LR
   SP -.-> BR
 ```
 
-1. **`./install.sh`** copies the MV3 extension into Vivaldi, registers it, starts the **bridge** as a user `systemd` service (`http://127.0.0.1:3847`), and wires **`dlh-browser`** into Cursor’s MCP config.
+1. **`./install.sh`** copies the MV3 extension into Vivaldi, registers it, starts the **bridge** as a user `systemd` service (`http://127.0.0.1:3847`), and wires **`rzbrowse`** into Cursor’s MCP config.
 2. **Extension (background)** keeps a long-lived link to the bridge. When automation is **On**, it accepts queued commands (navigate, snapshot, click, list tabs, …) and runs them against **your** Vivaldi profile.
 3. **Page automation** tries a fast path first (content scripts build an interactive `@ref` tree). Hard pages (thin trees, cross-origin frames, canvas/WebGL) **escalate to CDP** inside the same tab — still your browser, not a second automation profile.
-4. **Cursor agents** call `dlh_browser_*` tools via the MCP server → bridge → extension. The side panel can also chat through the bridge, which spawns **`agent acp`** sessions against your chosen project folder.
+4. **Cursor agents** call `rzbrowse_*` tools via the MCP server → bridge → extension. The side panel can also chat through the bridge, which spawns **`agent acp`** sessions against your chosen project folder.
 5. **Perplexity MCP** (optional) complements this: Perplexity answers from the web; RZBrowse operates on whatever is already loaded and signed in in Vivaldi.
 
 Nothing leaves your machine except Cursor’s own API traffic for models/chat. Browser cookies and logins stay in Vivaldi.
@@ -150,4 +150,4 @@ rm -f ~/.local/bin/vivaldi-dlh
 systemctl --user daemon-reload
 ```
 
-Remove `dlh-browser` from `~/.cursor/mcp.json` if desired.
+Remove `rzbrowse` from `~/.cursor/mcp.json` if desired.

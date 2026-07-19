@@ -65,12 +65,12 @@ const agentStatus = await command("agent", ["status"]);
 failures += line(agentStatus.ok && /logged in/i.test(agentStatus.stdout), "Cursor CLI logged in", agentStatus.stdout.trim());
 
 const mcpSmoke = await command(process.execPath, [join(projectRoot, "scripts", "mcp-smoke.js"), "--list-only"], { cwd: projectRoot });
-failures += line(mcpSmoke.ok, "dlh-browser MCP adapter", mcpSmoke.stdout.trim() || mcpSmoke.stderr.trim());
+failures += line(mcpSmoke.ok, "rzbrowse MCP adapter", mcpSmoke.stdout.trim() || mcpSmoke.stderr.trim());
 
 let mcpConfig;
 try {
   mcpConfig = JSON.parse(await readFile(join(projectRoot, ".cursor/mcp.json"), "utf8"));
-  failures += line(Boolean(mcpConfig?.mcpServers?.["dlh-browser"]), "Project MCP config");
+  failures += line(Boolean(mcpConfig?.mcpServers?.rzbrowse || mcpConfig?.mcpServers?.["dlh-browser"]), "Project MCP config");
 } catch {
   failures += line(false, "Project MCP config");
 }
@@ -95,12 +95,19 @@ try {
   browserStatus = {};
 }
 const automationOn = browserStatus.browserAutomationEnabled === true;
-const identityMatched = browserStatus.status === "matched";
+const identityMatched =
+  browserStatus.status === "matched" || browserStatus.status === "matched_version_drift";
+const automationActive = browserStatus.automationActive === true;
 failures += line(
-  browser.ok && extensionConnected && automationOn && identityMatched,
+  browser.ok && extensionConnected && automationOn && identityMatched && automationActive,
   "Expected extension linked with automation ON",
   browser.body?.trim?.().slice(0, 120)
 );
+if (browserStatus.status === "matched_version_drift") {
+  console.log(
+    `WARN Extension version drift (connected ${browserStatus.identity?.version} vs expected ${browserStatus.expected?.version}). Reload RZBrowse on vivaldi://extensions for full update.`
+  );
+}
 if (browser.ok && extensionConnected && !automationOn) {
   console.log("WARN Browser automation toggle is OFF — enable it in the side panel for agent control.");
 }
@@ -126,7 +133,7 @@ const mcpNavigate = await command(
 );
 failures += line(
   mcpNavigate.ok && /"finalUrl":\s*"https:\/\/tigertech\.net\//.test(mcpNavigate.stdout),
-  "MCP dlh_browser_navigate",
+  "MCP rzbrowse_navigate",
   (mcpNavigate.stdout.trim() || mcpNavigate.stderr.trim()).slice(0, 200)
 );
 

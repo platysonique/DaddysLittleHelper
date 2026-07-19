@@ -18,13 +18,13 @@ See `../DaddysLittleHelper-Research/BROWSEROS_OSS_REUSE_REPORT.md` for the resea
 | Component | Notes |
 |-----------|--------|
 | `bridge/` | Cursor CLI ACP/print runner, thread store, browser command hub (HTTP long-poll, not BrowserOS WebSocket controller). |
-| `mcp/dlh-browser.js` | dlh-browser MCP (internal organ) tool surface (`dlh_browser_*`). |
+| `mcp/rzbrowse.js` | `rzbrowse` MCP tool surface (`rzbrowse_*`; legacy `dlh_browser_*` aliases). |
 | `extension/page/` | **dlh-native** modules: `context.js` (structured page extract), `snapshot.js` (scored `dlh-tree-v1`, `@` refs), `actions.js` (pointer-first interaction). |
 | `extension/sidepanel.*` | Custom UI; not BrowserOS React/WXT agent app. |
 
 ## Deliberately removed (borrowed-era hacks)
 
-- Invisible scroll-helper buttons injected for **Playwright MCP** — deleted; scrolling uses `dlh_browser_scroll` only.
+- Invisible scroll-helper buttons injected for **Playwright MCP** — deleted; scrolling uses `rzbrowse_scroll` only.
 - Hidden DOM workspace meta tag for external automation — replaced with `chrome.storage.session` tab workspace map.
 
 ## Distribution note

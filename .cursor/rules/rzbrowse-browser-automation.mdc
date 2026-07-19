@@ -1,17 +1,17 @@
 ---
-description: RZBrowse — how to drive the user's daily Vivaldi (dlh-browser organs)
+description: RZBrowse — how to drive the user's daily Vivaldi (rzbrowse organs)
 alwaysApply: true
 ---
 
 # RZBrowse (daily Vivaldi browser)
 
-**Product name:** RZBrowse. **Organs (unchanged):** MCP server `dlh-browser`, tools `dlh_*` / `dlh_browser_*`, bridge `http://127.0.0.1:3847`, install paths `~/.local/share/daddyslittlehelper`, systemd unit `daddyslittlehelper`. GitHub: `https://github.com/platysonique/RZBrowse` (local folder may still be named DaddysLittleHelper).
+**Product name:** RZBrowse. **Organs:** MCP server `rzbrowse` (tools `rzbrowse_*`; legacy `dlh-browser` / `dlh_browser_*` aliases). Bridge `http://127.0.0.1:3847`, install paths `~/.local/share/daddyslittlehelper`, systemd unit `daddyslittlehelper`. GitHub: `https://github.com/platysonique/RZBrowse`.
 
 ## When to use what
 
 | Goal | Use |
 |------|-----|
-| Drive **daily Vivaldi** (real tabs, cookies, SSO) | **RZBrowse** → `dlh-browser` MCP (or bridge HTTP if MCP is down) |
+| Drive **daily Vivaldi** (real tabs, cookies, SSO) | **RZBrowse** → `rzbrowse` MCP (or bridge HTTP if MCP is down) |
 | Cursor-owned IDE browser tab | Cursor **Browser IDE** MCP |
 | Playwright / remote-debug on daily profile | **Never** unless the user explicitly asks |
 
@@ -20,8 +20,8 @@ If the user says “browser,” “my tabs,” “Vivaldi,” “Perplexity tab,
 ## Start of browser work
 
 1. Confirm RZBrowse side panel **Browser automation** is ON. If off, stop and say so — do not use motors.
-2. Prefer MCP: `dlh_bridge_status` → `dlh_browser_context` (or `target: all-tabs-context`). Fallback: `POST http://127.0.0.1:3847/browser/exec` with `params` (not `args`).
-3. Find tabs with `dlh_browser_tabs`. Own a tab with `dlh_browser_lease_claim` when multi-job / parallel agents; motors need `leaseToken` (MCP auto-attaches last claim). Default mission may auto-claim active tab.
+2. Prefer MCP: `rzbrowse_bridge_status` → `rzbrowse_context` (or `target: all-tabs-context`). Fallback: `POST http://127.0.0.1:3847/browser/exec` with `params` (not `args`).
+3. Find tabs with `rzbrowse_tabs`. Own a tab with `rzbrowse_lease_claim` when multi-job / parallel agents; motors need `leaseToken` (MCP auto-attaches last claim). Default mission may auto-claim active tab.
 
 ## Tip — Space “Start a session” mode: Search ≠ Computer
 
@@ -45,7 +45,7 @@ Wrong mode wastes a Computer task and is not a Space invent thread.
 
 When the user points at a Perplexity thread by quoting text from it, **do not** only scan tabs whose title is literally `Perplexity`. Active thread tabs often use the **thread prompt/title** as the tab title (sometimes truncated with `...`).
 
-1. List tabs (`dlh_browser_tabs` / bridge `tabs`).
+1. List tabs (`rzbrowse_tabs` / bridge `tabs`).
 2. Match the quoted phrase (or a distinctive substring) against **tab titles** first — e.g. title starts with or contains the phrase.
 3. `activate_tab` / focus that `tabId`, then confirm URL (`perplexity.ai/search/...`) via `context`.
 4. Only if title match fails, activate remaining Perplexity/library tabs and search page context — title match is usually enough and much faster.
@@ -126,10 +126,10 @@ When text is too large for one reliable Submit into Perplexity’s follow-up box
 - Snapshot before click/fill/type/select/scroll → use `@refs` + that snapshot’s `refGeneration` / `frameId`.
 - Re-snapshot after navigate, modal, wait, or big DOM change. Never reuse stale refs.
 - Prefer top-frame snapshot; `allFrames: true` only for iframe targets. `ifUnchanged: true` on stable pages.
-- SPA/React: prefer `dlh_browser_type` over fill when values don’t stick.
+- SPA/React: prefer `rzbrowse_type` over fill when values don’t stick.
 - Perplexity / Lexical / thin a11y trees: escalate via evaluate / `insert_text` / `press_keys` / `click_at` (CDP path is automatic; do not ask the user to toggle “deep”).
 - Same interaction fails twice → stop and report the blocker.
 
 ## Identity
 
-Extension display name **RZBrowse**; tool names stay `dlh_browser_*`. Same extension ID across updates.
+Extension display name **RZBrowse**; tool names stay `rzbrowse_*`. Same extension ID across updates.

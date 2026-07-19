@@ -59,8 +59,8 @@ try {
   send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   const tools = await read();
   const toolNames = tools.result?.tools?.map((tool) => tool.name) || [];
-  if (!toolNames.includes("dlh_browser_navigate")) {
-    throw new Error(`dlh_browser_navigate missing. Tools: ${toolNames.join(", ")}`);
+  if (!toolNames.includes("rzbrowse_navigate")) {
+    throw new Error(`rzbrowse_navigate missing. Tools: ${toolNames.join(", ")}`);
   }
   if (listOnly) {
     console.log(`MCP tools OK (${toolNames.length} tools).`);
@@ -69,7 +69,7 @@ try {
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
-      params: { name: "dlh_browser_navigate", arguments: { url } }
+      params: { name: "rzbrowse_navigate", arguments: { url } }
     });
     const navigate = await read(120_000);
     if (navigate.error) throw new Error(navigate.error.message || "MCP navigate failed.");

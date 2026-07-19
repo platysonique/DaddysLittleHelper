@@ -26,6 +26,21 @@ import {
 import { cancelChatSession, createChatSession, endChatSession } from "./chat-sessions.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { startPrintAgent } from "./print-runner.js";
+import { attachBrowserWebSocket } from "./browser-ws.js";
+import {
+  LeaseError,
+  authorizeMotor,
+  bindOpenedTab,
+  claimLease,
+  clearLeaseForTab,
+  initTabLeases,
+  listLeases,
+  releaseLease,
+  stealLease,
+  transferLease,
+  waitForLease,
+  MOTOR_BROWSER_COMMANDS
+} from "./tab-leases.js";
 
 const acpClients = new Map();
 
@@ -232,7 +247,7 @@ async function handleChat(req, res) {
   } catch (acpError) {
     if (browserAutomationEnabled) {
       const detail = acpError?.message || String(acpError);
-      const message = `Browser automation requires Cursor ACP with dlh-browser MCP. ACP failed: ${detail}`;
+      const message = `Browser automation requires Cursor ACP with rzbrowse MCP. ACP failed: ${detail}`;
       emit("error", { message });
       emit("done", { cursorChatId, threadId: thread?.id, error: true });
       endChatSession(chatSessionId);
@@ -281,7 +296,7 @@ async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
     if (req.method === "GET" && url.pathname === "/health") {
-      sendJson(res, 200, { ok: true, service: "DaddysLittleHelper bridge", port: DEFAULT_PORT });
+      sendJson(res, 200, { ok: true, service: "RZBrowse bridge", port: DEFAULT_PORT });
       return;
     }
     if (req.method === "GET" && url.pathname === "/models") {
@@ -428,16 +443,129 @@ async function route(req, res) {
       else sendJson(res, 200, { ok: true });
       return;
     }
+    if (req.method === "GET" && url.pathname === "/browser/leases") {
+      sendJson(res, 200, await listLeases());
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/leases/claim") {
+      try {
+        sendJson(res, 200, await claimLease(await readBody(req)));
+      } catch (error) {
+        if (error instanceof LeaseError) sendJson(res, error.httpStatus, error.toJSON());
+        else sendError(res, 500, error);
+      }
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/leases/release") {
+      try {
+        sendJson(res, 200, await releaseLease(await readBody(req)));
+      } catch (error) {
+        if (error instanceof LeaseError) sendJson(res, error.httpStatus, error.toJSON());
+        else sendError(res, 500, error);
+      }
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/leases/steal") {
+      try {
+        sendJson(res, 200, await stealLease(await readBody(req)));
+      } catch (error) {
+        if (error instanceof LeaseError) sendJson(res, error.httpStatus, error.toJSON());
+        else sendError(res, 500, error);
+      }
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/leases/transfer") {
+      try {
+        sendJson(res, 200, await transferLease(await readBody(req)));
+      } catch (error) {
+        if (error instanceof LeaseError) sendJson(res, error.httpStatus, error.toJSON());
+        else sendError(res, 500, error);
+      }
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/leases/wait") {
+      try {
+        sendJson(res, 200, await waitForLease(await readBody(req)));
+      } catch (error) {
+        if (error instanceof LeaseError) sendJson(res, error.httpStatus, error.toJSON());
+        else sendError(res, 500, error);
+      }
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/browser/exec") {
       const body = await readBody(req);
+      const command = body.command;
+      let params = body.params || {};
       try {
-        const result = await runBrowserCommand(body.command, body.params || {}, {
+        // Bridge-local wait — does not occupy the extension hub (H25).
+        if (String(command || "").toLowerCase() === "wait") {
+          const ms = Math.min(Math.max(Number(params.ms || 1000), 0), 120_000);
+          await new Promise((r) => setTimeout(r, ms));
+          sendJson(res, 200, { ok: true, result: { ok: true, waitedMs: ms, bridgeLocal: true } });
+          return;
+        }
+
+        let leaseMeta = null;
+        let autoClaimed = false;
+        if (MOTOR_BROWSER_COMMANDS.has(String(command || "").toLowerCase())) {
+          // Default-mission auto-claim needs a tabId; resolve active tab when caller omitted it.
+          if (
+            !params.leaseToken &&
+            (params.tabId === undefined || params.tabId === null) &&
+            String(params.missionId || "browser-mission-current").trim() === "browser-mission-current"
+          ) {
+            const tabsResult = await runBrowserCommand("tabs", {}, { timeoutMs: 15_000 });
+            const active = (tabsResult?.tabs || []).find((t) => t.active) || tabsResult?.tabs?.[0];
+            if (active?.id != null) {
+              params = { ...params, tabId: active.id, windowId: params.windowId ?? active.windowId };
+            }
+          }
+          const auth = await authorizeMotor(command, params);
+          params = auth.params;
+          leaseMeta = auth.leaseMeta || null;
+          autoClaimed = Boolean(auth.autoClaimed);
+        }
+
+        const result = await runBrowserCommand(command, params, {
           timeoutMs: Number(body.timeoutMs || 45_000)
         });
-        sendJson(res, 200, { ok: true, result });
+
+        // Auto-bind tabs opened under a lease (H27).
+        if (String(command || "").toLowerCase() === "tab_open" && result?.tab?.id) {
+          try {
+            const bound = await bindOpenedTab({
+              tabId: result.tab.id,
+              windowId: result.tab.windowId,
+              missionId: params.missionId,
+              actor: params.actor,
+              fromLeaseToken: params.leaseToken
+            });
+            result.lease = bound;
+          } catch {
+            // non-fatal — caller can claim explicitly
+          }
+        }
+
+        sendJson(res, 200, {
+          ok: true,
+          result,
+          ...(leaseMeta ? { lease: leaseMeta } : {}),
+          ...(autoClaimed ? { autoClaimed: true, leaseToken: params.leaseToken } : {})
+        });
       } catch (error) {
+        if (error instanceof LeaseError) {
+          sendJson(res, error.httpStatus, { ...error.toJSON(), status: await extensionStatus() });
+          return;
+        }
         sendJson(res, 503, { error: error?.message || String(error), status: await extensionStatus() });
       }
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/browser/tab-removed") {
+      const body = await readBody(req);
+      const tabId = Number(body.tabId);
+      if (!Number.isNaN(tabId)) await clearLeaseForTab(tabId);
+      sendJson(res, 200, { ok: true });
       return;
     }
     if (req.method === "POST" && url.pathname === "/browser/ping") {
@@ -456,14 +584,18 @@ try {
   await mkdir(DATA_DIR, { recursive: true });
   await mkdir(THREAD_DIR, { recursive: true });
   await loadWorkspaces();
+  await initTabLeases();
 
   const server = http.createServer(route);
+  attachBrowserWebSocket(server);
   server.on("error", (error) => {
     console.error(`[dlh-bridge] listen failed on ${DEFAULT_HOST}:${DEFAULT_PORT}:`, error.message);
     process.exit(1);
   });
   server.listen(DEFAULT_PORT, DEFAULT_HOST, () => {
-    console.log(`DaddysLittleHelper bridge listening on http://${DEFAULT_HOST}:${DEFAULT_PORT}`);
+    console.log(
+      `RZBrowse bridge listening on http://${DEFAULT_HOST}:${DEFAULT_PORT} (WebSocket /browser/ws)`
+    );
   });
 } catch (error) {
   console.error("[dlh-bridge] startup failed:", error?.message || error);
